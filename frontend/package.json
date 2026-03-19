@@ -1,0 +1,26 @@
+{
+  "name": "runwaydeck-frontend",
+  "version": "1.0.0",
+  "description": "RunwayDeck 3D — Airport Ground Operations Visualiser",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "@react-three/postprocessing": "^3.0.4",
+    "lucide-react": "^0.577.0",
+    "postprocessing": "^6.38.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "three": "^0.183.2",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.0"
+  }
+}
