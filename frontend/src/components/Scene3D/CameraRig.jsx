@@ -8,8 +8,8 @@ import * as THREE from 'three';
 import { useFlightStore } from '../../store/useFlightStore';
 
 // Fixed camera positions/orientations per mode
-const TOWER_POS    = new THREE.Vector3(60, 180, 200);
-const TOWER_LOOK   = new THREE.Vector3(20, 0, -30);
+const TOWER_POS    = new THREE.Vector3(200, 280, 450);
+const TOWER_LOOK   = new THREE.Vector3(150, 0, -30);
 const RUNWAY_POS   = new THREE.Vector3(-120, 15, 50);
 
 // How fast the camera lerps to its target (higher = snappier)
@@ -21,8 +21,8 @@ export function CameraRig() {
   const flights    = useFlightStore(s => s.flights);
   const selectedId = useFlightStore(s => s.selectedFlightId);
 
-  const lookTarget = useRef(new THREE.Vector3(20, 0, -30));
-  const posTarget  = useRef(new THREE.Vector3(60, 180, 200));
+  const lookTarget = useRef(new THREE.Vector3(150, 0, -30));
+  const posTarget  = useRef(new THREE.Vector3(200, 280, 450));
 
   useFrame((_, delta) => {
     const selected = flights.find(f => f.id === selectedId);

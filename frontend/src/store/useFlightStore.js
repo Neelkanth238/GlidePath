@@ -12,6 +12,9 @@ export const useFlightStore = create((set, get) => ({
   // ── Selection ──────────────────────────────────────────────────────────────
   selectedFlightId: null,
 
+  // ── Theme ──────────────────────────────────────────────────────────────────
+  theme: 'dark',
+
   // ── Camera ─────────────────────────────────────────────────────────────────
   cameraMode: 'TOWER',
 
@@ -51,6 +54,7 @@ export const useFlightStore = create((set, get) => ({
   setConnected:  (connected) => set({ connected }),
   selectFlight:  (id)        => set({ selectedFlightId: id }),
   setCameraMode: (mode)      => set({ cameraMode: mode }),
+  toggleTheme:   ()          => set(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
 
   // Derived helper — used by CameraRig to get the focused aircraft object
   getSelected: (state) => state.flights.find(f => f.id === state.selectedFlightId),

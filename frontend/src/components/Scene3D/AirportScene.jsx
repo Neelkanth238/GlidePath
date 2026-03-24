@@ -7,6 +7,7 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useTexture } from '@react-three/drei';
+import { useFlightStore } from '../../store/useFlightStore';
 
 // ── Shared geometry & material singletons (created once, reused everywhere) ──
 const SPHERE_GEO   = new THREE.SphereGeometry(0.22, 6, 6);
@@ -16,9 +17,10 @@ const SPHERE_GEO_S = new THREE.SphereGeometry(0.35, 6, 6);
 // RunwayLights — InstancedMesh for all edge lights of ONE runway
 // ─────────────────────────────────────────────────────────────────────────────
 function RunwayEdgeLights({ length, width, count = 40 }) {
+  const theme = useFlightStore(s => s.theme);
   const mat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#fde68a', emissive: '#fbbf24', emissiveIntensity: 4,
-  }), []);
+    color: '#fde68a', emissive: '#fbbf24', emissiveIntensity: theme === 'light' ? 0.2 : 4,
+  }), [theme]);
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const instanceCount = count * 2;
@@ -47,9 +49,10 @@ function RunwayEdgeLights({ length, width, count = 40 }) {
 // ApproachLights — InstancedMesh for approach guidance lights
 // ─────────────────────────────────────────────────────────────────────────────
 function ApproachLights({ positions }) {
+  const theme = useFlightStore(s => s.theme);
   const mat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: 'white', emissive: '#ffffff', emissiveIntensity: 5,
-  }), []);
+    color: 'white', emissive: '#ffffff', emissiveIntensity: theme === 'light' ? 0.2 : 5,
+  }), [theme]);
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
@@ -102,6 +105,7 @@ function GroundLights() {
 // Runway — single slab + centre markings + threshold + edge lights (instanced)
 // ─────────────────────────────────────────────────────────────────────────────
 function Runway({ position, length = 440, width = 24, rotation = [0, 0, 0] }) {
+  const theme = useFlightStore(s => s.theme);
   const centerLines = useMemo(() => Array.from({ length: 22 }, (_, i) => (
     -length / 2 + i * (length / 22) + 10
   )), [length]);
@@ -111,7 +115,7 @@ function Runway({ position, length = 440, width = 24, rotation = [0, 0, 0] }) {
       {/* Asphalt */}
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width, length]} />
-        <meshStandardMaterial color="#0a0e16" roughness={0.12} metalness={0.4} />
+        <meshStandardMaterial color={theme === 'light' ? "#334155" : "#0a0e16"} roughness={0.12} metalness={0.4} />
       </mesh>
 
       {/* Centre-line markings — merged into a group but still cheap (no shadow) */}
@@ -138,6 +142,7 @@ function Runway({ position, length = 440, width = 24, rotation = [0, 0, 0] }) {
 
 // Simple taxiway slab
 function Taxiway({ from, to, width = 12 }) {
+  const theme = useFlightStore(s => s.theme);
   const [fx, fz] = from;
   const [tx, tz] = to;
   const midX = (fx + tx) / 2;
@@ -147,18 +152,19 @@ function Taxiway({ from, to, width = 12 }) {
   return (
     <mesh position={[midX, 0.03, midZ]} rotation={[-Math.PI / 2, 0, angle]} receiveShadow>
       <planeGeometry args={[width, length]} />
-      <meshStandardMaterial color="#0b0f1a" roughness={0.15} metalness={0.3} />
+      <meshStandardMaterial color={theme === 'light' ? "#475569" : "#0b0f1a"} roughness={0.15} metalness={0.3} />
     </mesh>
   );
 }
 
 // Parking stand
 function Stand({ position }) {
+  const theme = useFlightStore(s => s.theme);
   return (
     <group position={position}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[20, 24]} />
-        <meshStandardMaterial color="#050810" roughness={0.2} metalness={0.5} />
+        <meshStandardMaterial color={theme === 'light' ? "#64748b" : "#050810"} roughness={0.2} metalness={0.5} />
       </mesh>
       <mesh position={[0, 0.07, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[0.5, 22]} />
@@ -216,6 +222,7 @@ function Terminal() {
 
 // Ground tarmac with satellite texture
 function Ground() {
+  const theme = useFlightStore(s => s.theme);
   const texture = useTexture('/surat_airport.png');
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(4, 4);
@@ -223,7 +230,7 @@ function Ground() {
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]} receiveShadow>
         <planeGeometry args={[2000, 2000]} />
-        <meshStandardMaterial map={texture} color="#334155" roughness={0.8} metalness={0.1} />
+        <meshStandardMaterial map={texture} color={theme === 'light' ? "#94a3b8" : "#334155"} roughness={0.8} metalness={0.1} />
       </mesh>
       {/* 225 spheres → 1 instanced draw call */}
       <GroundLights />
@@ -231,12 +238,13 @@ function Ground() {
   );
 }
 
-// Pre-compute approach light positions to avoid creating arrays in render
-const LANDING_APPROACH_POS = [-1, 1].flatMap(side =>
-  Array.from({ length: 12 }, (_, i) => [side * 15, 0.5, 260 + i * 25])
+const RUNWAY_XS = [-200, -100, 0, 420, 540];
+
+const LANDING_APPROACH_POS = RUNWAY_XS.flatMap(rx =>
+  [-1, 1].flatMap(side => Array.from({ length: 12 }, (_, i) => [rx + side * 15, 0.5, 260 + i * 25]))
 );
-const TAKEOFF_APPROACH_POS = [-1, 1].flatMap(side =>
-  Array.from({ length: 8 }, (_, i) => [70 + side * 15, 0.5, -260 - i * 25])
+const TAKEOFF_APPROACH_POS = RUNWAY_XS.flatMap(rx =>
+  [-1, 1].flatMap(side => Array.from({ length: 8 }, (_, i) => [rx + side * 15, 0.5, -260 - i * 25]))
 );
 
 const STAND_POSITIONS = ['A', 'B', 'C'].flatMap((_, li) =>
@@ -244,18 +252,25 @@ const STAND_POSITIONS = ['A', 'B', 'C'].flatMap((_, li) =>
 );
 
 export const AirportScene = React.memo(function AirportScene() {
+  const theme = useFlightStore(s => s.theme); // Ensure memoised scene refreshes on theme change
   return (
     <group>
       <Ground />
 
-      <Runway position={[0,  0, 0]} length={520} width={26} />
-      <Runway position={[70, 0, 0]} length={520} width={26} />
+      {RUNWAY_XS.map(rx => (
+        <Runway key={rx} position={[rx, 0, 0]} length={520} width={26} />
+      ))}
 
-      <Taxiway from={[0,   -100]} to={[70,  -100]} />
-      <Taxiway from={[70,  -100]} to={[180, -100]} />
-      <Taxiway from={[70,   140]} to={[180,  140]} />
+      <Taxiway from={[-200, -100]} to={[180, -100]} />
+      <Taxiway from={[-200,  140]} to={[180,  140]} />
       <Taxiway from={[180, -220]} to={[180,  220]} />
       <Taxiway from={[180,    0]} to={[210,    0]} />
+      
+      {/* Right side runways taxi linkages (Spaced out) */}
+      <Taxiway from={[310, -100]} to={[540, -100]} />
+      <Taxiway from={[310,  140]} to={[540,  140]} />
+      <Taxiway from={[310, -220]} to={[310,  220]} />
+      <Taxiway from={[244,    0]} to={[310,    0]} />
 
       {STAND_POSITIONS.map(([x, y, z], i) => (
         <Stand key={i} position={[x, y, z]} />

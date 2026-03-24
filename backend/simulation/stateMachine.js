@@ -69,11 +69,23 @@ function addAtcMessage(flight, template) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Position (scene units)
 // ─────────────────────────────────────────────────────────────────────────────
+function getRunwayOffset(runway) {
+  if (runway === '27L') return -200;
+  if (runway === '27C') return -100;
+  if (runway === '27R') return 0;
+  if (runway === '28L') return 420;
+  if (runway === '28R') return 540;
+  return 0;
+}
+
 function getTargetPosition(phase, progress, flight) {
   const standLetter = flight.stand.charCodeAt(0) - 65;
   const standNum    = parseInt(flight.stand[1] || '1');
   const standX = 200 + standLetter * 22;
   const standZ = -30 + standNum * 22;
+  const rwX    = getRunwayOffset(flight.runway);
+  const twyX   = rwX > 200 ? 310 : 180;
+  const holdDir = rwX > 200 ? -30 : 30; // Approach from the left vs right
 
   switch (phase) {
     case 'WAITING':
@@ -84,24 +96,24 @@ function getTargetPosition(phase, progress, flight) {
       };
 
     case 'APPROACH':
-      return { x: 0, y: lerp(120, 8, progress), z: lerp(450, 180, progress) };
+      return { x: rwX, y: lerp(120, 8, progress), z: lerp(450, 180, progress) };
 
     case 'LANDING':
-      return { x: 0, y: lerp(8, 0, progress), z: lerp(180, 80, progress) };
+      return { x: rwX, y: lerp(8, 0, progress), z: lerp(180, 80, progress) };
 
     case 'ROLL_OUT':
-      return { x: 0, y: 0, z: lerp(80, -100, progress) };
+      return { x: rwX, y: 0, z: lerp(80, -100, progress) };
 
     case 'RUNWAY_EXIT':
-      return { x: lerp(0, 180, progress), y: 0, z: -100 };
+      return { x: lerp(rwX, twyX, progress), y: 0, z: -100 };
 
     case 'TAXI_IN': {
       if (progress < 0.6) {
         const p = progress / 0.6;
-        return { x: 180, y: 0, z: lerp(-100, 0, p) };
+        return { x: twyX, y: 0, z: lerp(-100, 0, p) };
       } else {
         const p = (progress - 0.6) / 0.4;
-        return { x: lerp(180, standX, p), y: 0, z: lerp(0, standZ, p) };
+        return { x: lerp(twyX, standX, p), y: 0, z: lerp(0, standZ, p) };
       }
     }
 
@@ -114,22 +126,22 @@ function getTargetPosition(phase, progress, flight) {
     case 'TAXI_OUT': {
       if (progress < 0.3) {
         const p = progress / 0.3;
-        return { x: lerp(standX - 10, 180, p), y: 0, z: lerp(standZ + 5, 0, p) };
+        return { x: lerp(standX - 10, twyX, p), y: 0, z: lerp(standZ + 5, 0, p) };
       } else if (progress < 0.8) {
         const p = (progress - 0.3) / 0.5;
-        return { x: 180, y: 0, z: lerp(0, 140, p) };
+        return { x: twyX, y: 0, z: lerp(0, 140, p) };
       } else {
         const p = (progress - 0.8) / 0.2;
-        return { x: lerp(180, 70, p), y: 0, z: 140 };
+        return { x: lerp(twyX, rwX + holdDir, p), y: 0, z: 140 }; // Directly to runway threshold
       }
     }
 
     case 'LINE_UP':
-      return { x: 70, y: 0, z: lerp(140, 130, progress) };
+      return { x: lerp(rwX + holdDir, rwX, progress), y: 0, z: lerp(140, 130, progress) };
 
     case 'TAKEOFF':
       return {
-        x: 70,
+        x: rwX,
         y: lerp(0, 100, progress * progress),
         z: lerp(130, -500, progress),
       };
@@ -389,7 +401,7 @@ function tick(flight, dt) {
   let targetHeading = flight.heading;
   if (flight.phase === 'AT_STAND' || flight.phase === 'PUSHBACK') {
     targetHeading = 0;
-  } else if (['APPROACH','LANDING','ROLL_OUT','LINE_UP','TAKEOFF'].includes(flight.phase)) {
+  } else if (['APPROACH','LANDING','ROLL_OUT','TAKEOFF'].includes(flight.phase)) {
     targetHeading = 270;
   } else {
     const dx = target.x - flight.position.x;
@@ -410,12 +422,28 @@ function tick(flight, dt) {
       return false; // Loop holding pattern
     }
 
+    // Hold only for taxi-out (pushback) from stands. Arriving planes taxi in automatically once off the runway.
+    if (flight.phase === 'AT_STAND' && !flight.approvedForTaxi) {
+      flight.phaseTimer = duration;
+      flight.progress = 1; 
+      return false; // Hold at stand for pushback/taxi clearance
+    }
+
+    if (flight.phase === 'TAXI_OUT' && !flight.approvedForTakeoff) {
+      flight.phaseTimer = duration;
+      flight.progress = 1;
+      return false; // Hold at the runway hold-short line until takeoff is approved
+    }
     const currentIndex = PHASE_ORDER.indexOf(flight.phase);
     if (currentIndex === PHASE_ORDER.length - 1) {
       return true; // TAKEOFF complete — remove
     }
 
     const nextPhase = PHASE_ORDER[currentIndex + 1];
+    if (nextPhase === 'AT_STAND') {
+      flight.approvedForTaxi = false; 
+    }
+    
     onPhaseEntry(flight, nextPhase);
     flight.phase     = nextPhase;
     flight.phaseTimer = 0;

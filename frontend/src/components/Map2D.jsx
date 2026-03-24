@@ -12,7 +12,7 @@ import { useFlightStore } from '../store/useFlightStore';
 
 function toSvg(x, z) {
   return {
-    sx: (x / 280) * 240 + 20,
+    sx: ((x + 250) / 850) * 240 + 20,
     sy: ((z + 200) / 520) * 200 + 10,
   };
 }
@@ -42,74 +42,83 @@ export function Map2D() {
     // Helper to convert backend scene coords to canvas pixels
     function tp(x, z) {
       return {
-        cx: (x / 280) * (w - 20) + 10,
+        cx: ((x + 250) / 850) * (w - 20) + 10,
         cy: ((z + 200) / 520) * (h - 10) + 5,
       };
     }
 
     ctx.clearRect(0, 0, W, H);
+    const theme = useFlightStore.getState().theme;
+    const isLight = theme === 'light';
 
     // ── Background ──
-    ctx.fillStyle = '#060b16';
+    ctx.fillStyle = isLight ? '#f1f5f9' : '#060b16';
     ctx.fillRect(0, 0, w, h);
 
     // ── Grass areas ──
-    ctx.fillStyle = '#0a1520';
+    ctx.fillStyle = isLight ? '#f8fafc' : '#0a1520';
     ctx.fillRect(0, 0, w, h);
 
-    // ── Landing Runway (x=0, z=-260 to 260) ──
-    const rwyStart = tp(-13, -260);
-    const rwyEnd   = tp(13, 260);
-    ctx.fillStyle = '#1a2535';
-    ctx.fillRect(rwyStart.cx, rwyStart.cy, rwyEnd.cx - rwyStart.cx, rwyEnd.cy - rwyStart.cy);
-    ctx.strokeStyle = '#2a3a55';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(rwyStart.cx, rwyStart.cy, rwyEnd.cx - rwyStart.cx, rwyEnd.cy - rwyStart.cy);
-
-    // Centre-line dashes (Landing)
-    ctx.strokeStyle = '#3d5a8a';
-    ctx.setLineDash([4, 4]);
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo((rwyStart.cx + rwyEnd.cx) / 2, rwyStart.cy);
-    ctx.lineTo((rwyStart.cx + rwyEnd.cx) / 2, rwyEnd.cy);
-    ctx.stroke();
+    const RUNWAY_XS = [-200, -100, 0, 420, 540];
     
-    // ── Takeoff Runway (x=70, z=-260 to 260) ──
-    const rwy2Start = tp(57, -260);
-    const rwy2End   = tp(83, 260);
-    ctx.fillStyle = '#1a2535';
-    ctx.fillRect(rwy2Start.cx, rwy2Start.cy, rwy2End.cx - rwy2Start.cx, rwy2End.cy - rwy2Start.cy);
-    ctx.strokeStyle = '#2a3a55';
-    ctx.strokeRect(rwy2Start.cx, rwy2Start.cy, rwy2End.cx - rwy2Start.cx, rwy2End.cy - rwy2Start.cy);
-    
-    // Centre-line dashes (Takeoff)
-    ctx.beginPath();
-    ctx.moveTo((rwy2Start.cx + rwy2End.cx) / 2, rwy2Start.cy);
-    ctx.lineTo((rwy2Start.cx + rwy2End.cx) / 2, rwy2End.cy);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // ── Runways ──
+    RUNWAY_XS.forEach(rx => {
+      const rStart = tp(rx - 13, -260);
+      const rEnd   = tp(rx + 13, 260);
+      ctx.fillStyle = isLight ? '#cbd5e1' : '#1a2535';
+      ctx.fillRect(rStart.cx, rStart.cy, rEnd.cx - rStart.cx, rEnd.cy - rStart.cy);
+      ctx.strokeStyle = isLight ? '#94a3b8' : '#2a3a55';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(rStart.cx, rStart.cy, rEnd.cx - rStart.cx, rEnd.cy - rStart.cy);
 
-    // ── Vertical Taxiway "plane run after and before terminal" (x=180, z=-220 to 220) ──
-    const vtwy1 = tp(174, -220);
-    const vtwy2 = tp(186, 220);
+      // Centre-line dashes
+      ctx.strokeStyle = '#3d5a8a';
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo((rStart.cx + rEnd.cx) / 2, rStart.cy);
+      ctx.lineTo((rStart.cx + rEnd.cx) / 2, rEnd.cy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // ── Vertical Taxiways (Left x=180, Right x=310) ──
+    ctx.fillStyle = isLight ? '#94a3b8' : '#111827';
+    const vtwy1L = tp(174, -220);
+    const vtwy2L = tp(186, 220);
     ctx.fillStyle = '#131d2e';
-    ctx.fillRect(vtwy1.cx, vtwy1.cy, vtwy2.cx - vtwy1.cx, vtwy2.cy - vtwy1.cy);
+    ctx.fillRect(vtwy1L.cx, vtwy1L.cy, vtwy2L.cx - vtwy1L.cx, vtwy2L.cy - vtwy1L.cy);
 
-    // ── Top Cross Taxiway bridge (z=-100) bridging 0 to 180 (Arrivals) ──
-    const cross1Start = tp(0, -106);
+    const vtwy1R = tp(304, -220);
+    const vtwy2R = tp(316, 220);
+    ctx.fillRect(vtwy1R.cx, vtwy1R.cy, vtwy2R.cx - vtwy1R.cx, vtwy2R.cy - vtwy1R.cy);
+
+    // ── Top Cross Taxiway bridges (z=-100)
+    const cross1Start = tp(-200, -106);
     const cross1End = tp(180, -94);
     ctx.fillRect(cross1Start.cx, cross1Start.cy, cross1End.cx - cross1Start.cx, cross1End.cy - cross1Start.cy);
 
-    // ── Bottom Cross Taxiway bridge (z=140) bridging 70 to 180 (Departures) ──
-    const depStart = tp(70, 134);
+    const crossRStart = tp(310, -106);
+    const crossREnd = tp(540, -94);
+    ctx.fillRect(crossRStart.cx, crossRStart.cy, crossREnd.cx - crossRStart.cx, crossREnd.cy - crossRStart.cy);
+
+    // ── Bottom Cross Taxiway bridges (z=140)
+    const depStart = tp(-200, 134);
     const depEnd = tp(180, 146);
     ctx.fillRect(depStart.cx, depStart.cy, depEnd.cx - depStart.cx, depEnd.cy - depStart.cy);
 
-    // ── Single Connector to Terminal (z=0 from x=180 to x=210) ──
+    const depRStart = tp(310, 134);
+    const depREnd = tp(540, 146);
+    ctx.fillRect(depRStart.cx, depRStart.cy, depREnd.cx - depRStart.cx, depREnd.cy - depRStart.cy);
+
+    // ── Connectors to Terminal
     const termConnStart = tp(180, -6);
     const termConnEnd = tp(210, 6);
     ctx.fillRect(termConnStart.cx, termConnStart.cy, termConnEnd.cx - termConnStart.cx, termConnEnd.cy - termConnStart.cy);
+
+    const termConnStartR = tp(240, -6);
+    const termConnEndR = tp(310, 6);
+    ctx.fillRect(termConnStartR.cx, termConnStartR.cy, termConnEndR.cx - termConnStartR.cx, termConnEndR.cy - termConnStartR.cy);
 
     // ── Terminal building ──
     const term1 = tp(215, -40);
@@ -181,22 +190,25 @@ export function Map2D() {
       }
     }
 
-    // ── "09/27R" runway labels ──
+    // ── Runway labels ──
     ctx.fillStyle = '#3d5a8a';
     ctx.font = `${Math.max(7, w * 0.036)}px Inter, sans-serif`;
     ctx.textAlign = 'center';
     
-    // Landing Runway (x=0)
-    const labelTop = tp(0, -270);
-    const labelBot = tp(0,  270);
-    ctx.fillText('09L', labelTop.cx, labelTop.cy);
-    ctx.fillText('27R', labelBot.cx, labelBot.cy);
+    const rwLabels = [
+      { top: '09R', bot: '27L' },
+      { top: '09C', bot: '27C' },
+      { top: '09L', bot: '27R' },
+      { top: '10R', bot: '28L' },
+      { top: '10L', bot: '28R' }
+    ];
 
-    // Takeoff Runway (x=70)
-    const labelTop2 = tp(70, -270);
-    const labelBot2 = tp(70,  270);
-    ctx.fillText('09R', labelTop2.cx, labelTop2.cy);
-    ctx.fillText('27L', labelBot2.cx, labelBot2.cy);
+    RUNWAY_XS.forEach((rx, i) => {
+      const labelTop = tp(rx, -270);
+      const labelBot = tp(rx,  270);
+      ctx.fillText(rwLabels[i].top, labelTop.cx, labelTop.cy);
+      ctx.fillText(rwLabels[i].bot, labelBot.cx, labelBot.cy);
+    });
 
   }, [flights, selected]);
 
@@ -210,7 +222,7 @@ export function Map2D() {
 
     function tp(x, z) {
       return {
-        cx: (x / 280) * (w - 20) + 10,
+        cx: ((x + 250) / 850) * (w - 20) + 10,
         cy: ((z + 200) / 520) * (h - 10) + 5,
       };
     }

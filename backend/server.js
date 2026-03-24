@@ -37,6 +37,11 @@ app.post('/flights/:id/approve', (req, res) => {
   const flight = dataStore.getById(req.params.id);
   if (!flight) return res.status(404).json({ error: `Flight ${req.params.id} not found` });
 
+  if (req.body.runway) flight.runway = req.body.runway;
+
+  const occupied = dataStore.getAll().find(f => f.runway === flight.runway && f.runwayOccupied && f.id !== flight.id);
+  if (occupied) return res.status(400).json({ error: `Runway ${flight.runway} is currently occupied by ${occupied.id}.` });
+
   flight.approvedForLanding = true;
 
   // Log pilot readback
@@ -56,6 +61,54 @@ app.post('/flights/:id/approve', (req, res) => {
 
   dataStore.set(flight);
   console.log(`[ATC] ${flight.id} cleared for ILS runway ${flight.runway}`);
+  res.json({ success: true, flight });
+});
+
+// POST /flights/:id/approve-taxi  — ATC clears aircraft for taxi
+app.post('/flights/:id/approve-taxi', (req, res) => {
+  const flight = dataStore.getById(req.params.id);
+  if (!flight) return res.status(404).json({ error: `Flight ${req.params.id} not found` });
+
+  if (req.body.runway) flight.runway = req.body.runway;
+  flight.approvedForTaxi = true;
+
+  if (!flight.atcLog) flight.atcLog = [];
+  flight.atcLog.push({
+    time: new Date().toISOString(),
+    from: 'ATC',
+    msg: `${flight.id}, cleared to taxi via active taxiways.`,
+  });
+  if (flight.atcLog.length > 20) flight.atcLog = flight.atcLog.slice(-20);
+  flight.atcClearance = `CLEARED TO TAXI`;
+
+  dataStore.set(flight);
+  console.log(`[ATC] ${flight.id} cleared for taxi`);
+  res.json({ success: true, flight });
+});
+
+// POST /flights/:id/approve-takeoff  — ATC clears aircraft for takeoff
+app.post('/flights/:id/approve-takeoff', (req, res) => {
+  const flight = dataStore.getById(req.params.id);
+  if (!flight) return res.status(404).json({ error: `Flight ${req.params.id} not found` });
+
+  if (req.body.runway) flight.runway = req.body.runway;
+
+  const occupied = dataStore.getAll().find(f => f.runway === flight.runway && f.runwayOccupied && f.id !== flight.id);
+  if (occupied) return res.status(400).json({ error: `Runway ${flight.runway} is currently occupied by ${occupied.id}.` });
+
+  flight.approvedForTakeoff = true;
+
+  if (!flight.atcLog) flight.atcLog = [];
+  flight.atcLog.push({
+    time: new Date().toISOString(),
+    from: 'ATC',
+    msg: `${flight.id}, wind ${Math.round(flight.windDirection || 270)}° at ${Math.round(flight.windSpeed || 12)} knots, runway ${flight.runway} cleared for takeoff.`,
+  });
+  if (flight.atcLog.length > 20) flight.atcLog = flight.atcLog.slice(-20);
+  flight.atcClearance = `CLEARED FOR TAKEOFF`;
+
+  dataStore.set(flight);
+  console.log(`[ATC] ${flight.id} cleared for takeoff`);
   res.json({ success: true, flight });
 });
 

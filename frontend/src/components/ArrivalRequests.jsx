@@ -24,8 +24,13 @@ function WeightBadge({ wc }) {
   );
 }
 
-function ArrivalCard({ flight, onApprove }) {
+function ArrivalCard({ flight, onApprove, buttonText = "APPROVE" }) {
   const [expanded, setExpanded] = React.useState(false);
+  const [selectedRunway, setSelectedRunway] = React.useState(flight.runway || '27R');
+
+  React.useEffect(() => {
+    if (flight.runway) setSelectedRunway(flight.runway);
+  }, [flight.runway]);
 
   const headwind = (flight.headwindComp || 0).toFixed(0);
   const crosswind = Math.abs(flight.crosswindComp || 0).toFixed(0);
@@ -75,13 +80,33 @@ function ArrivalCard({ flight, onApprove }) {
         </div>
 
         {/* Approve */}
-        <button
-          className="approve-btn"
-          onClick={(e) => { e.stopPropagation(); onApprove(flight.id); }}
-          style={{ flexShrink: 0, padding: '6px 10px', fontSize: 9, letterSpacing: 1.5 }}
-        >
-          APPROVE
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+          { (buttonText === 'TAXI' || buttonText === 'LANDING') && (
+            <select
+              value={selectedRunway}
+              onChange={(e) => { e.stopPropagation(); setSelectedRunway(e.target.value); }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)',
+                color: '#fff', fontSize: 9, padding: '2px 4px', borderRadius: 3, outline: 'none',
+                fontFamily: 'var(--font-mono)'
+              }}
+            >
+              <option value="27L">27L</option>
+              <option value="27C">27C</option>
+              <option value="27R">27R</option>
+              <option value="28L">28L</option>
+              <option value="28R">28R</option>
+            </select>
+          )}
+          <button
+            className="approve-btn"
+            onClick={(e) => { e.stopPropagation(); onApprove(flight.id, selectedRunway); }}
+            style={{ padding: '6px 10px', fontSize: 9, letterSpacing: 1.5 }}
+          >
+            {buttonText}
+          </button>
+        </div>
       </div>
 
       {/* Expanded detail */}
@@ -148,11 +173,23 @@ function ArrivalCard({ flight, onApprove }) {
 export function ArrivalRequests() {
   const flights     = useFlightStore(s => s.flights);
   const arrivals    = flights.filter(f => f.phase === 'WAITING' && !f.approvedForLanding);
+  const taxiReqs    = flights.filter(f => f.phase === 'AT_STAND' && !f.approvedForTaxi);
+  const takeoffReqs = flights.filter(f => f.phase === 'TAXI_OUT' && !f.approvedForTakeoff && f.progress >= 1);
   const inApproach  = flights.filter(f => ['APPROACH', 'LANDING', 'ROLL_OUT'].includes(f.phase));
 
-  const handleApprove = async (id) => {
+  const totalReqs = arrivals.length + taxiReqs.length + takeoffReqs.length;
+
+  const handleApprove = async (id, type = 'approve', runway) => {
     try {
-      await fetch(`http://localhost:8080/flights/${id}/approve`, { method: 'POST' });
+      const res = await fetch(`http://localhost:8080/flights/${id}/${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runway })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Approval failed');
+      }
     } catch (err) {
       console.error('Approval failed', err);
     }
@@ -163,8 +200,8 @@ export function ArrivalRequests() {
       {/* Header */}
       <div className="panel-header" style={{ marginBottom: 12 }}>
         <Bell size={14} />
-        <h3>ARRIVAL MANAGEMENT</h3>
-        <span className="badge">{arrivals.length}</span>
+        <h3>ATC MANAGEMENT</h3>
+        <span className="badge">{totalReqs}</span>
       </div>
 
       {/* Active on approach / runway summary */}
@@ -186,15 +223,38 @@ export function ArrivalRequests() {
       )}
 
       {/* Pending arrivals */}
-      {arrivals.length > 0 ? (
-        <div className="arrival-list">
+      {arrivals.length > 0 && (
+        <div className="arrival-list" style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: '#f59e0b', marginBottom: 8, fontWeight: 700 }}>PENDING ARRIVALS</div>
           {arrivals.map(flight => (
-            <ArrivalCard key={flight.id} flight={flight} onApprove={handleApprove} />
+            <ArrivalCard key={flight.id} flight={flight} onApprove={(id, rw) => handleApprove(id, 'approve', rw)} buttonText="LANDING" />
           ))}
         </div>
-      ) : (
+      )}
+
+      {/* Pending Taxi */}
+      {taxiReqs.length > 0 && (
+        <div className="arrival-list" style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: '#06b6d4', marginBottom: 8, fontWeight: 700 }}>TAXI CLEARANCE</div>
+          {taxiReqs.map(flight => (
+            <ArrivalCard key={flight.id} flight={flight} onApprove={(id, rw) => handleApprove(id, 'approve-taxi', rw)} buttonText="TAXI" />
+          ))}
+        </div>
+      )}
+
+      {/* Pending Takeoff */}
+      {takeoffReqs.length > 0 && (
+        <div className="arrival-list" style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: '#3b82f6', marginBottom: 8, fontWeight: 700 }}>TAKEOFF CLEARANCE</div>
+          {takeoffReqs.map(flight => (
+            <ArrivalCard key={flight.id} flight={flight} onApprove={(id, rw) => handleApprove(id, 'approve-takeoff', rw)} buttonText="TAKEOFF" />
+          ))}
+        </div>
+      )}
+
+      {totalReqs === 0 && (
         <div style={{ padding: '24px 20px', textAlign: 'center', opacity: 0.4, fontSize: 10, fontFamily: 'var(--font-mono)' }}>
-          NO PENDING ARRIVALS
+          NO PENDING ATC REQUESTS
         </div>
       )}
     </div>

@@ -13,18 +13,21 @@ import { Aircraft } from './Aircraft';
 import { CameraRig } from './CameraRig';
 
 function AtmosphericLighting() {
+  const theme = useFlightStore(s => s.theme);
+  const isLight = theme === 'light';
+
   return (
     <>
-      <ambientLight intensity={0.4} color="#8baad4" />
+      <ambientLight intensity={isLight ? 1.0 : 0.4} color={isLight ? "#ffffff" : "#8baad4"} />
 
-      {/* Principal key light — shadow map tuned for performance */}
+      {/* Principal key light */}
       <directionalLight
         position={[80, 200, 100]}
-        intensity={0.8}
-        color="#d4e8ff"
+        intensity={isLight ? 1.5 : 0.8}
+        color={isLight ? "#fff9f0" : "#d4e8ff"}
         castShadow
-        shadow-mapSize-width={512}
-        shadow-mapSize-height={512}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
         shadow-camera-far={800}
         shadow-camera-left={-300}
         shadow-camera-right={300}
@@ -33,18 +36,16 @@ function AtmosphericLighting() {
         shadow-bias={-0.001}
       />
 
-      {/* Subtle blue fill — no shadow needed */}
+      {/* Subtle blue fill */}
       <spotLight
         position={[-150, 50, -100]}
         angle={0.6}
         penumbra={1}
-        intensity={0.5}
-        color="#3b82f6"
-        castShadow={false}
+        intensity={isLight ? 0.2 : 0.5}
+        color={isLight ? "#ffffff" : "#3b82f6"}
       />
 
-      {/* Very subtle environment for PBR reflections */}
-      <Environment preset="city" environmentIntensity={0.08} />
+      <Environment preset={isLight ? "park" : "city"} environmentIntensity={isLight ? 0.5 : 0.08} />
     </>
   );
 }
@@ -52,6 +53,11 @@ function AtmosphericLighting() {
 export function View3D() {
   const flights    = useFlightStore(s => s.flights);
   const cameraMode = useFlightStore(s => s.cameraMode);
+  const theme      = useFlightStore(s => s.theme);
+  const isLight    = theme === 'light';
+
+  const skyColor = isLight ? '#87ceeb' : '#04070d';
+  const fogColor = isLight ? '#e2e8f0' : '#04070d';
 
   return (
     <div className="viewport" style={{ width: '100%', height: '100%' }}>
@@ -72,11 +78,12 @@ export function View3D() {
         performance={{ min: 0.5 }} // r3f adaptive performance
       >
         {/* ── Atmosphere & Fog ──────────────────────────────── */}
-        <color attach="background" args={['#04070d']} />
-        <fog attach="fog" args={['#04070d', 400, 1400]} />
+        <color attach="background" args={[skyColor]} />
+        <fog attach="fog" args={[fogColor, isLight ? 200 : 400, isLight ? 1200 : 1400]} />
 
-        {/* Reduced star count for better perf */}
-        <Stars radius={600} depth={100} count={2000} factor={4} fade speed={0.4} />
+        {!isLight && (
+          <Stars radius={600} depth={100} count={2000} factor={4} fade speed={0.4} />
+        )}
 
         <Suspense fallback={null}>
           <AtmosphericLighting />

@@ -28,7 +28,7 @@ const AIRPORTS_ORIGINS = [
   'KJFK','KLAX','KSFO','KATL','KORD','EGBB','EGCC','EGPH','EIDW','LSZH'
 ];
 
-const RUNWAYS = ['27R', '27L', '09R'];
+const RUNWAYS = ['27L', '27C', '27R', '09L', '09R'];
 const STANDS  = ['A1','A2','A3','B1','B2','B3','B4','C1','C2','C3'];
 
 // All currently active flights on the airfield

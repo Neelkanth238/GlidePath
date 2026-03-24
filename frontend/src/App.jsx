@@ -2,7 +2,7 @@
 // Orchestrates the high-fidelity 3D viewport, real-time sidebar, and cinematic overlays.
 
 import React, { useState, useEffect } from 'react';
-import { Plane, Wind, Cpu, Layout, Crosshair, TowerControl as Tower, MousePointer2, List, Map as MapIcon, Bell, Info } from 'lucide-react';
+import { Plane, Wind, Cpu, Layout, Crosshair, TowerControl as Tower, MousePointer2, List, Map as MapIcon, Bell, Info, Sun, Moon } from 'lucide-react';
 import { WebSocketManager } from './components/WebSocketManager';
 import { FlightList } from './components/FlightList';
 import { Map2D } from './components/Map2D';
@@ -15,6 +15,8 @@ function Header({ panels, togglePanel }) {
   const cameraMode = useFlightStore(s => s.cameraMode);
   const setCameraMode = useFlightStore(s => s.setCameraMode);
   const connected = useFlightStore(s => s.connected);
+  const theme = useFlightStore(s => s.theme);
+  const toggleTheme = useFlightStore(s => s.toggleTheme);
 
   return (
     <header className="app-header">
@@ -60,6 +62,9 @@ function Header({ panels, togglePanel }) {
           <button className={`cam-btn ${panels.list ? 'active' : ''}`} onClick={() => togglePanel('list')} title="Toggle Flight List"><List size={16} /></button>
           <button className={`cam-btn ${panels.blueprint ? 'active' : ''}`} onClick={() => togglePanel('blueprint')} title="Toggle Blueprint Map"><MapIcon size={16} /></button>
           <button className={`cam-btn ${panels.requests ? 'active' : ''}`} onClick={() => togglePanel('requests')} title="Toggle Arrival Requests"><Bell size={16} /></button>
+          <button className="cam-btn" onClick={toggleTheme} title="Toggle Theme">
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
         </div>
 
         {/* Status */}
@@ -75,6 +80,7 @@ function Header({ panels, togglePanel }) {
 
 export default function App() {
   const selectedFlightId = useFlightStore(s => s.selectedFlightId);
+  const theme = useFlightStore(s => s.theme);
 
   // Control visibility of various overlay sections
   const [panels, setPanels] = useState({
@@ -89,7 +95,7 @@ export default function App() {
   // so no explicit toggle needed, it just pops up when active.
 
   return (
-    <div className="app-shell glass-layout">
+    <div className={`app-shell glass-layout ${theme === 'light' ? 'light-theme' : ''}`}>
       {/* Real-time sync engine */}
       <WebSocketManager />
 
