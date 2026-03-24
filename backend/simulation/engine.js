@@ -1,21 +1,22 @@
 // engine.js — Main simulation loop
-// Ticks the state machine for every flight, spawns new ones to maintain density,
-// and removes flights that have completed their takeoff.
+// Ticks the state machine for every flight, spawns new ones to maintain density.
 
-const dataStore = require('../store/dataStore');
+const dataStore    = require('../store/dataStore');
 const stateMachine = require('./stateMachine');
 
-const TARGET_FLIGHT_COUNT = 4;  // Reduced density to prevent overcrowding
-const TICK_INTERVAL_MS    = 50; // Internal simulation step (20 Hz)
+const TARGET_FLIGHT_COUNT = 5;
+const TICK_INTERVAL_MS    = 50; // 20 Hz
 
 let lastTickTime = Date.now();
 
 function tick() {
   const now = Date.now();
-  const dt  = (now - lastTickTime) / 1000; // seconds elapsed since last tick
+  const dt  = (now - lastTickTime) / 1000;
   lastTickTime = now;
 
-  // Evolve each active flight
+  // Push current wind data to state machine (avoids circular dep)
+  stateMachine.setCurrentWinds(dataStore.getWinds());
+
   const allFlights = dataStore.getAll();
   for (const flight of allFlights) {
     const shouldRemove = stateMachine.tick(flight, dt);
@@ -23,22 +24,20 @@ function tick() {
       console.log(`[Engine] Flight ${flight.id} departed. Removing.`);
       dataStore.remove(flight.id);
     } else {
-      dataStore.set(flight); // Write updated state back
+      dataStore.set(flight);
     }
   }
 
-  // Spawn new aircraft if we're below target density
+  // Spawn new aircraft if below target
   if (dataStore.size() < TARGET_FLIGHT_COUNT) {
     const newFlight = dataStore.createNewFlight();
-    console.log(`[Engine] Spawning new flight: ${newFlight.id} on ${newFlight.runway}`);
+    console.log(`[Engine] Spawning: ${newFlight.id} (${newFlight.aircraftType}) from ${newFlight.origin}`);
   }
 }
 
 function start() {
   console.log('[Engine] Simulation engine starting…');
-  // Seed with a nice spread of aircraft across all phases
   dataStore.seedFlights();
-  // Start the simulation loop
   setInterval(tick, TICK_INTERVAL_MS);
   console.log(`[Engine] Running at ${1000 / TICK_INTERVAL_MS} Hz`);
 }
