@@ -57,7 +57,6 @@ export function View3D() {
   const isLight    = theme === 'light';
 
   const skyColor = isLight ? '#87ceeb' : '#04070d';
-  const fogColor = isLight ? '#e2e8f0' : '#04070d';
 
   return (
     <div className="viewport" style={{ width: '100%', height: '100%' }}>
@@ -77,9 +76,8 @@ export function View3D() {
         frameloop="always"
         performance={{ min: 0.5 }} // r3f adaptive performance
       >
-        {/* ── Atmosphere & Fog ──────────────────────────────── */}
+        {/* ── Atmosphere ───────────────────────────────────── */}
         <color attach="background" args={[skyColor]} />
-        <fog attach="fog" args={[fogColor, isLight ? 200 : 400, isLight ? 1200 : 1400]} />
 
         {!isLight && (
           <Stars radius={600} depth={100} count={2000} factor={4} fade speed={0.4} />

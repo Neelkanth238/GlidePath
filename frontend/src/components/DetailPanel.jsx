@@ -34,6 +34,59 @@ const PHASE_COLORS = {
 // Sub-components
 // ─────────────────────────────────────────────────────────────────────────────
 
+function FreeRunwaySelect({ value, onChange, color = 'var(--accent-green)', flightId }) {
+  const flights = useFlightStore(s => s.flights);
+  
+  // A runway is "in use" if any OTHER flight is using it in an active phase
+  const occupiedRunways = new Set(
+    flights
+      .filter(f => f.id !== flightId)
+      .filter(f => {
+        const activePhases = ['APPROACH', 'LANDING', 'ROLL_OUT', 'LINE_UP', 'TAKEOFF'];
+        if (activePhases.includes(f.phase)) return true;
+        if (f.phase === 'WAITING' && f.approvedForLanding) return true;
+        if (f.phase === 'TAXI_OUT' && f.approvedForTakeoff) return true;
+        return false;
+      })
+      .map(f => f.runway)
+  );
+  const ALL_RUNWAYS = ['27L', '27C', '27R', '09L', '09R'];
+  const freeRunways = ALL_RUNWAYS.filter(r => !occupiedRunways.has(r));
+
+  React.useEffect(() => {
+    if (!freeRunways.includes(value) && freeRunways.length > 0) {
+      onChange(freeRunways[0]);
+    }
+  }, [freeRunways.join(','), value, onChange]);
+
+  if (freeRunways.length === 0) {
+    return (
+      <div style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 12px', height: '100%', border: '1px solid #ef4444',
+          color: '#ef4444', background: 'transparent',
+          fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '11px'
+      }}>NO RWY FREE</div>
+    );
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        padding: '0 12px', height: '100%',
+        border: `1px solid ${color}`, color: '#000', background: color,
+        fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '11px',
+        cursor: 'pointer', outline: 'none'
+      }}
+    >
+      {freeRunways.map(r => <option key={r} value={r}>RWY {r}</option>)}
+    </select>
+  );
+}
+
 function Row({ label, value, unit, color, warn }) {
   return (
     <div className="dp-row" style={{ borderColor: warn ? 'rgba(239,68,68,0.3)' : undefined }}>
@@ -234,7 +287,7 @@ function TakeoffPanel({ f }) {
   );
 }
 
-function WaitingPanel({ f, onApprove }) {
+function WaitingPanel({ f }) {
   return (
     <>
       <SectionHeader title="HOLDING PATTERN" />
@@ -245,15 +298,6 @@ function WaitingPanel({ f, onApprove }) {
       <Row label="WEIGHT CLASS" value={f.weightClass || '—'} />
       <Row label="AIRCRAFT" value={f.aircraftType || '—'} color="#f59e0b" />
       <Row label="FUEL" value={Math.round(f.fuelKg || 0)} unit="kg" />
-      <div style={{ marginTop: 12 }}>
-        <button
-          className="dp-approve-btn"
-          onClick={onApprove}
-        >
-          <Navigation size={13} />
-          APPROVE ILS APPROACH — RWY {f.runway}
-        </button>
-      </div>
     </>
   );
 }
@@ -268,6 +312,14 @@ export function DetailPanel() {
   const setCameraMode  = useFlightStore(s => s.setCameraMode);
 
   const flight = flights.find(f => f.id === selectedId);
+  const [assignedRwy, setAssignedRwy] = useState(null);
+
+  useEffect(() => {
+    if (flight && assignedRwy === null) {
+      setAssignedRwy(flight.runway || '27R');
+    }
+  }, [flight, assignedRwy]);
+
   const { inlineMode } = arguments[0] || {};
 
   if (!flight) {
@@ -279,9 +331,13 @@ export function DetailPanel() {
     return null;
   }
 
-  const handleApprove = async () => {
+  const handleApprove = async (rwy, type = 'approve') => {
     try {
-      await fetch(`http://localhost:8080/flights/${flight.id}/approve`, { method: 'POST' });
+      await fetch(`http://localhost:8080/flights/${flight.id}/${type}`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runway: rwy || flight.runway })
+      });
     } catch (e) { console.error(e); }
   };
 
@@ -290,7 +346,7 @@ export function DetailPanel() {
 
   function PhasePanelContent() {
     switch (flight.phase) {
-      case 'WAITING':     return <WaitingPanel f={flight} onApprove={handleApprove} />;
+      case 'WAITING':     return <WaitingPanel f={flight} />;
       case 'APPROACH':    return <ApproachPanel f={flight} />;
       case 'LANDING':     return <LandingPanel f={flight} />;
       case 'ROLL_OUT':    return <RollOutPanel f={flight} />;
@@ -375,13 +431,32 @@ export function DetailPanel() {
       <AtcLog log={flight.atcLog} />
 
       {/* Footer buttons */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-        <button className="focus-btn" style={{ flex: 1 }} onClick={() => setCameraMode('FOLLOW')}>
+      {['WAITING', 'AT_STAND'].includes(flight.phase) && (
+        <div className="dp-section-header" style={{ marginTop: 16 }}>
+          <span>RUNWAY ASSIGNMENT</span>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 6, marginTop: 4, height: 40 }}>
+        {['WAITING', 'AT_STAND'].includes(flight.phase) && (
+          <FreeRunwaySelect flightId={flight.id} value={assignedRwy || flight.runway || '27R'} onChange={setAssignedRwy} color={flight.phase === 'WAITING' ? 'var(--accent-green)' : '#06b6d4'} />
+        )}
+
+        <button className="focus-btn" style={{ flex: 1, height: '100%', margin: 0, padding: 0 }} onClick={() => setCameraMode('FOLLOW')}>
           TARGET LOCK
         </button>
         {flight.phase === 'WAITING' && !flight.approvedForLanding && (
-          <button className="dp-approve-btn" style={{ flex: 2 }} onClick={handleApprove}>
-            <Navigation size={12} /> APPROVE
+          <button className="focus-btn" style={{ flex: 2, height: '100%', margin: 0, background: '#000', color: 'var(--accent-green)', border: '1px solid var(--accent-green)' }} onClick={() => handleApprove(assignedRwy, 'approve')}>
+            <Navigation size={12} style={{ marginRight: 6, verticalAlign: 'middle' }} /> APPROVE LANDING
+          </button>
+        )}
+        {flight.phase === 'AT_STAND' && !flight.approvedForTaxi && (
+          <button className="focus-btn" style={{ flex: 2, height: '100%', margin: 0, background: '#000', color: '#06b6d4', border: '1px solid #06b6d4' }} onClick={() => handleApprove(assignedRwy, 'approve-taxi')}>
+            <Navigation size={12} style={{ marginRight: 6, verticalAlign: 'middle' }} /> APPROVE TAXI
+          </button>
+        )}
+        {flight.phase === 'TAXI_OUT' && !flight.approvedForTakeoff && flight.progress >= 1 && (
+          <button className="focus-btn" style={{ flex: 2, height: '100%', margin: 0, background: '#000', color: '#3b82f6', border: '1px solid #3b82f6' }} onClick={() => handleApprove(flight.runway, 'approve-takeoff')}>
+            <Navigation size={12} style={{ marginRight: 6, verticalAlign: 'middle' }} /> APPROVE TAKEOFF
           </button>
         )}
       </div>

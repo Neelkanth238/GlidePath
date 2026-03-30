@@ -7,7 +7,7 @@ import { WebSocketManager } from './components/WebSocketManager';
 import { FlightList } from './components/FlightList';
 import { Map2D } from './components/Map2D';
 import { DetailPanel } from './components/DetailPanel';
-import { ArrivalRequests } from './components/ArrivalRequests';
+import { ATCBubbles } from './components/ATCBubbles';
 import { View3D } from './components/Scene3D/View3D';
 import { useFlightStore } from './store/useFlightStore';
 
@@ -61,7 +61,6 @@ function Header({ panels, togglePanel }) {
         <div style={{ display: 'flex', gap: '6px', borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: '16px' }}>
           <button className={`cam-btn ${panels.list ? 'active' : ''}`} onClick={() => togglePanel('list')} title="Toggle Flight List"><List size={16} /></button>
           <button className={`cam-btn ${panels.blueprint ? 'active' : ''}`} onClick={() => togglePanel('blueprint')} title="Toggle Blueprint Map"><MapIcon size={16} /></button>
-          <button className={`cam-btn ${panels.requests ? 'active' : ''}`} onClick={() => togglePanel('requests')} title="Toggle Arrival Requests"><Bell size={16} /></button>
           <button className="cam-btn" onClick={toggleTheme} title="Toggle Theme">
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
@@ -136,15 +135,8 @@ export default function App() {
 
         </div>
 
-        {/* Right Side Placements */}
-        <div className="panel-right-group" style={{ pointerEvents: 'none' }}>
-          {/* Top Right Panel - Arrival Request */}
-          {panels.requests && (
-            <div className="glass-panel panel-right-top ui-container popup-animation" style={{ pointerEvents: 'auto' }}>
-              <ArrivalRequests />
-            </div>
-          )}
-        </div>
+        {/* Right Side Placements — Automated Bubbles */}
+        <ATCBubbles />
 
         {/* Floating details popup (Absolutely positioned by CSS) */}
         {selectedFlightId && <DetailPanel />}

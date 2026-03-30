@@ -308,10 +308,10 @@ function updateTelemetry(flight, phase, progress, dt) {
   if (['LANDING', 'ROLL_OUT', 'LINE_UP', 'TAKEOFF'].includes(phase)) {
     flight.runwayOccupied = true;
     flight.runwayOccupancyTimer = (flight.runwayOccupancyTimer || 0) + dt;
-  } else if (phase === 'RUNWAY_EXIT' && progress > 0.5) {
+  } else if (phase === 'RUNWAY_EXIT') {
+    flight.runwayOccupied = progress <= 0.5;
+  } else {
     flight.runwayOccupied = false;
-  } else if (!['LANDING','ROLL_OUT','LINE_UP','TAKEOFF'].includes(phase)) {
-    if (phase !== 'LANDING') flight.runwayOccupied = false;
   }
 
   // ── Ground speed / TAS / Mach ────────────────────────────────────────────

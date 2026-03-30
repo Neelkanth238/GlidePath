@@ -24,6 +24,60 @@ function WeightBadge({ wc }) {
   );
 }
 
+function FreeRunwaySelect({ value, onChange, color = 'var(--accent-amber)', flightId }) {
+  const flights = useFlightStore(s => s.flights);
+
+  // A runway is "in use" if any OTHER flight is using it in an active phase
+  const occupiedRunways = new Set(
+    flights
+      .filter(f => f.id !== flightId)
+      .filter(f => {
+        const activePhases = ['APPROACH', 'LANDING', 'ROLL_OUT', 'LINE_UP', 'TAKEOFF'];
+        if (activePhases.includes(f.phase)) return true;
+        if (f.phase === 'WAITING' && f.approvedForLanding) return true;
+        if (f.phase === 'TAXI_OUT' && f.approvedForTakeoff) return true;
+        return false;
+      })
+      .map(f => f.runway)
+  );
+  const ALL_RUNWAYS = ['27L', '27C', '27R', '09L', '09R'];
+  const freeRunways = ALL_RUNWAYS.filter(r => !occupiedRunways.has(r));
+
+  React.useEffect(() => {
+    if (!freeRunways.includes(value) && freeRunways.length > 0) {
+      onChange(freeRunways[0]);
+    }
+  }, [freeRunways.join(','), value, onChange]);
+
+  if (freeRunways.length === 0) {
+    return (
+      <div style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          padding: '2px 4px', border: '1px solid #ef4444',
+          color: '#ef4444', background: 'transparent',
+          fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '9px'
+      }}>NO RWY FREE</div>
+    );
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={e => { e.stopPropagation(); onChange(e.target.value); }}
+      onClick={e => e.stopPropagation()}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        padding: '3px 6px',
+        border: `1px solid ${color}`, color: '#000', background: color,
+        fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '9px',
+        cursor: 'pointer', outline: 'none'
+      }}
+    >
+      {freeRunways.map(r => <option key={r} value={r}>RWY {r}</option>)}
+    </select>
+  );
+}
+
 function ArrivalCard({ flight, onApprove, buttonText = "APPROVE" }) {
   const [expanded, setExpanded] = React.useState(false);
   const [selectedRunway, setSelectedRunway] = React.useState(flight.runway || '27R');
@@ -82,22 +136,7 @@ function ArrivalCard({ flight, onApprove, buttonText = "APPROVE" }) {
         {/* Approve */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
           { (buttonText === 'TAXI' || buttonText === 'LANDING') && (
-            <select
-              value={selectedRunway}
-              onChange={(e) => { e.stopPropagation(); setSelectedRunway(e.target.value); }}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)',
-                color: '#fff', fontSize: 9, padding: '2px 4px', borderRadius: 3, outline: 'none',
-                fontFamily: 'var(--font-mono)'
-              }}
-            >
-              <option value="27L">27L</option>
-              <option value="27C">27C</option>
-              <option value="27R">27R</option>
-              <option value="28L">28L</option>
-              <option value="28R">28R</option>
-            </select>
+            <FreeRunwaySelect flightId={flight.id} value={selectedRunway} onChange={setSelectedRunway} color="var(--accent-amber)" />
           )}
           <button
             className="approve-btn"
