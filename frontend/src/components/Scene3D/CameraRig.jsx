@@ -33,17 +33,25 @@ export function CameraRig() {
       posTarget.current.copy(TOWER_POS);
       lookTarget.current.copy(TOWER_LOOK);
 
-    } else if (cameraMode === 'FOLLOW' && selected) {
+    } else if (cameraMode === 'FOLLOW' && selected && selected.position) {
       // ── Chase cam — follows behind and above selected aircraft ─────────
-      const { x, y, z } = selected.position;
-      const headingRad = THREE.MathUtils.degToRad(selected.heading);
+      const x = selected.position.x ?? 0;
+      const y = selected.position.y ?? 0;
+      const z = selected.position.z ?? 0;
+      const headingRad = THREE.MathUtils.degToRad(selected.heading ?? 270);
 
-      // Offset: 60 units behind the aircraft, 25 units up
-      const offsetX = Math.sin(headingRad) * -60;
-      const offsetZ = Math.cos(headingRad) * -60;
+      // Guard against NaN values which cause black screen
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+        posTarget.current.copy(TOWER_POS);
+        lookTarget.current.copy(TOWER_LOOK);
+      } else {
+        // Offset: 60 units behind the aircraft, 25 units up
+        const offsetX = Math.sin(headingRad) * -60;
+        const offsetZ = Math.cos(headingRad) * -60;
 
-      posTarget.current.set(x + offsetX, y + 30 + selected.position.y * 0.5, z + offsetZ);
-      lookTarget.current.set(x, y + 2, z);
+        posTarget.current.set(x + offsetX, y + 30 + y * 0.5, z + offsetZ);
+        lookTarget.current.set(x, y + 2, z);
+      }
 
     } else if (cameraMode === 'RUNWAY') {
       // ── Side-on runway view ────────────────────────────────────────────
@@ -51,20 +59,24 @@ export function CameraRig() {
 
       // Lock onto the most active landing/takeoff aircraft if any
       const activeOnRunway = flights.find(f =>
+        f.position && 
+        Number.isFinite(f.position.x) &&
+        Number.isFinite(f.position.y) &&
+        Number.isFinite(f.position.z) &&
         ['APPROACH','LANDING','TAKEOFF','LINE_UP'].includes(f.phase)
       );
-      if (activeOnRunway) {
+      if (activeOnRunway && activeOnRunway.position) {
         lookTarget.current.set(
-          activeOnRunway.position.x,
-          activeOnRunway.position.y,
-          activeOnRunway.position.z
+          activeOnRunway.position.x || 0,
+          activeOnRunway.position.y || 0,
+          activeOnRunway.position.z || 0
         );
       } else {
         lookTarget.current.set(0, 5, 0);
       }
 
-    } else if (cameraMode === 'FOLLOW' && !selected) {
-      // Follow mode but no selection — fall back to tower
+    } else if (cameraMode === 'FOLLOW' && (!selected || !selected.position)) {
+      // Follow mode but no selection or missing position — fall back to tower
       posTarget.current.copy(TOWER_POS);
       lookTarget.current.copy(TOWER_LOOK);
     }
@@ -73,10 +85,21 @@ export function CameraRig() {
     camera.position.lerp(posTarget.current, lerpT);
 
     // Look-at via smooth slerp of quaternion
+    // GUARD: if camera is at (or extremely close to) the look target,
+    // Matrix4.lookAt() produces a degenerate matrix (NaN quaternion) —
+    // which was the main cause of the pitch-black screen on phase transitions.
+    const distToTarget = camera.position.distanceTo(lookTarget.current);
+    if (distToTarget < 0.5) return; // Too close — skip rotation this frame
+
     const desiredQuat = new THREE.Quaternion();
     const tempM = new THREE.Matrix4();
     tempM.lookAt(camera.position, lookTarget.current, camera.up);
     desiredQuat.setFromRotationMatrix(tempM);
+
+    // Extra NaN safety: if the quaternion is corrupt, bail out
+    if (!Number.isFinite(desiredQuat.x) || !Number.isFinite(desiredQuat.y) ||
+        !Number.isFinite(desiredQuat.z) || !Number.isFinite(desiredQuat.w)) return;
+
     camera.quaternion.slerp(desiredQuat, lerpT);
   });
 

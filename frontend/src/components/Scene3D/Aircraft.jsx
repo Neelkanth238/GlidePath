@@ -76,8 +76,12 @@ export const Aircraft = memo(function Aircraft({ flight }) {
   const isSelected  = flight.id === selectedId;
 
   // ── Dead-reckoning state (survives renders, invisible to React) ─────────────
-  // These refs store the live interpolation targets without causing re-renders.
-  const smoothPos   = useRef(new THREE.Vector3(flight.position.x, flight.position.y, flight.position.z));
+  // IMPORTANT: All hooks must be called unconditionally (Rules of Hooks).
+  // The position guard is handled INSIDE useFrame, never before hooks.
+  const initialPos = (flight.position && Number.isFinite(flight.position.x))
+    ? flight.position
+    : { x: 0, y: 0, z: 0 };
+  const smoothPos   = useRef(new THREE.Vector3(initialPos.x, initialPos.y, initialPos.z));
   const smoothYaw   = useRef(0);
   const smoothPitch = useRef(0);
   const smoothBank  = useRef(0);
@@ -90,7 +94,12 @@ export const Aircraft = memo(function Aircraft({ flight }) {
   const pulseTime = useRef(0);
 
   useFrame((state, delta) => {
+    // Safe guard inside useFrame (not before hooks — Rules of Hooks)
     if (!groupRef.current) return;
+    if (!flight.position ||
+        !Number.isFinite(flight.position.x) ||
+        !Number.isFinite(flight.position.y) ||
+        !Number.isFinite(flight.position.z)) return;
 
     // Clamp delta so a slow frame doesn't cause a massive jump
     const dt = Math.min(delta, 0.05);
@@ -161,6 +170,14 @@ export const Aircraft = memo(function Aircraft({ flight }) {
       }
     }
   });
+
+  // Guard render output — position must be valid for JSX, but hooks already ran above
+  if (!flight.position ||
+      !Number.isFinite(flight.position.x) ||
+      !Number.isFinite(flight.position.y) ||
+      !Number.isFinite(flight.position.z)) {
+    return null;
+  }
 
   return (
     <group

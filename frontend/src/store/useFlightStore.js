@@ -33,14 +33,23 @@ export const useFlightStore = create((set, get) => ({
     const next = incoming.map(f => {
       const prev = currentMap.get(f.id);
       if (!prev) { changed = true; return f; }
-      // Deep-compare only the fields that Aircraft.jsx actually reads
+      // Compare all fields that affect UI rendering — position, phase, approval flags, telemetry
       if (
-        prev.position.x !== f.position.x ||
-        prev.position.y !== f.position.y ||
-        prev.position.z !== f.position.z ||
-        prev.phase      !== f.phase      ||
-        prev.progress   !== f.progress   ||
-        prev.heading    !== f.heading
+        !prev.position         !== !f.position         ||
+        (prev.position && f.position && (
+        prev.position.x        !== f.position.x        ||
+        prev.position.y        !== f.position.y        ||
+        prev.position.z        !== f.position.z))      ||
+        prev.phase             !== f.phase             ||
+        prev.progress          !== f.progress          ||
+        prev.heading           !== f.heading           ||
+        prev.approvedForLanding  !== f.approvedForLanding  ||
+        prev.approvedForTaxi     !== f.approvedForTaxi     ||
+        prev.approvedForTakeoff  !== f.approvedForTakeoff  ||
+        prev.speed             !== f.speed             ||
+        prev.altitude          !== f.altitude          ||
+        prev.verticalSpeed     !== f.verticalSpeed     ||
+        prev.runway            !== f.runway
       ) {
         changed = true;
         return f;

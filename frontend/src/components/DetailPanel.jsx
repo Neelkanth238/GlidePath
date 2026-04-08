@@ -7,12 +7,22 @@ import { useFlightStore } from '../store/useFlightStore';
 
 function fmt(isoString) {
   if (!isoString) return '—';
-  return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch (e) { return '—'; }
 }
 
-function fmtTime(isoString) {
-  if (!isoString) return '—';
-  return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+function fmtTime(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return '—';
+  }
 }
 
 // Phase colour mapping
@@ -187,12 +197,15 @@ function AtcLog({ log = [] }) {
 
   return (
     <div className="dp-atc-log" ref={ref}>
-      {log.slice(-8).map((entry, i) => (
-        <div key={i} className={`dp-atc-entry dp-atc-${entry.from?.toLowerCase()}`}>
-          <span className="dp-atc-from">[{entry.from}]</span>
-          <span className="dp-atc-msg">{entry.msg}</span>
-        </div>
-      ))}
+      {log.slice(-8).map((entry, i) => {
+        if (!entry) return null;
+        return (
+          <div key={i} className={`dp-atc-entry dp-atc-${entry.from?.toLowerCase() || 'tower'}`}>
+            <span className="dp-atc-from">[{entry.from || 'ATC'}]</span>
+            <span className="dp-atc-msg">{entry.msg || ''}</span>
+          </div>
+        );
+      })}
       {log.length === 0 && <div style={{ opacity: 0.4, fontSize: 9 }}>NO ATC TRAFFIC</div>}
     </div>
   );
@@ -305,7 +318,7 @@ function WaitingPanel({ f }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
-export function DetailPanel() {
+export function DetailPanel({ inlineMode }) {
   const flights        = useFlightStore(s => s.flights);
   const selectedId     = useFlightStore(s => s.selectedFlightId);
   const selectFlight   = useFlightStore(s => s.selectFlight);
@@ -314,13 +327,12 @@ export function DetailPanel() {
   const flight = flights.find(f => f.id === selectedId);
   const [assignedRwy, setAssignedRwy] = useState(null);
 
+  // Synchronise assignedRwy state only when the SELECTED FLIGHT ID changes.
   useEffect(() => {
-    if (flight && assignedRwy === null) {
+    if (flight) {
       setAssignedRwy(flight.runway || '27R');
     }
-  }, [flight, assignedRwy]);
-
-  const { inlineMode } = arguments[0] || {};
+  }, [selectedId]);
 
   if (!flight) {
     if (inlineMode) return (
@@ -342,7 +354,7 @@ export function DetailPanel() {
   };
 
   const phaseColor = PHASE_COLORS[flight.phase] || '#ffffff';
-  const loadPct    = Math.min((flight.speed / 200) * 100, 100);
+  const loadPct    = Math.min(((flight.speed || 0) / 200) * 100, 100);
 
   function PhasePanelContent() {
     switch (flight.phase) {
@@ -362,105 +374,99 @@ export function DetailPanel() {
   }
 
   return (
-    <div className={`detail-panel dp-v2 ${inlineMode ? 'inline' : 'popup-animation'}`} style={{ pointerEvents: 'auto' }}>
+    <div className={`detail-panel dp-v2 ${inlineMode ? 'inline' : 'popup-animation'}`} style={{ pointerEvents: 'auto', '--meta-color': phaseColor }}>
+      
+      {/* Sidebar Branding */}
+      <div className="dp-sidebar">
+        <div className="sidebar-icon-box" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <Plane size={18} />
+        </div>
+        <div className="sidebar-airline-badge">
+          {flight.airline || 'UNKNOWN'}
+        </div>
+      </div>
 
-      {/* Header */}
-      <div className="dp-header">
-        <div className="dp-header__left">
-          <div className="dp-callsign">{flight.id}</div>
-          <div className="dp-airline">{flight.airline} · {flight.aircraftType || ''}</div>
-          <div className="dp-phase-badge" style={{ background: `${phaseColor}22`, color: phaseColor, borderColor: `${phaseColor}44` }}>
-            {flight.phase.replace(/_/g, ' ')}
+      <div className="dp-content">
+        {/* Header */}
+        <div className="dp-header">
+          <div className="dp-header__left">
+            <div className="dp-callsign">{flight.id}</div>
+            <div className="dp-airline">{flight.airline} · {flight.aircraftType || 'B738'}</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <button className="close-action" onClick={() => selectFlight(null)}><X size={16} /></button>
+            <div className="dp-squawk">{flight.squawk || '7000'}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <button className="cam-btn" style={{ padding: '4px 8px' }} onClick={() => selectFlight(null)}><X size={12} /></button>
-          <div className="dp-squawk">{flight.squawk || '7000'}</div>
+
+        {/* Top 4 tactical metrics */}
+        <div className="dp-metric-bar">
+          <div className="dp-metric-bar__item">
+            <span className="dp-metric-bar__label">GS</span>
+            <span className="dp-metric-bar__value">{Math.round(flight.speed)}<small style={{ fontSize: '8px', marginLeft: '2px', opacity: 0.6 }}>KT</small></span>
+          </div>
+          <div className="dp-metric-bar__item">
+            <span className="dp-metric-bar__label">ALT</span>
+            <span className="dp-metric-bar__value">{Math.round(flight.altitude || 0)}<small style={{ fontSize: '8px', marginLeft: '2px', opacity: 0.6 }}>FT</small></span>
+          </div>
+          <div className="dp-metric-bar__item">
+            <span className="dp-metric-bar__label">HDG</span>
+            <span className="dp-metric-bar__value">{Math.round(flight.heading)}°</span>
+          </div>
+          <div className="dp-metric-bar__item">
+            <span className="dp-metric-bar__label">V/S</span>
+            <span className="dp-metric-bar__value" style={{ color: (flight.verticalSpeed || 0) < -800 ? 'var(--accent-red)' : 'var(--accent-green)' }}>
+              {Math.round(flight.verticalSpeed || 0)}
+            </span>
+          </div>
+        </div>
+
+        {/* Phase-specific telemetry */}
+        <div className="dp-phase-content">
+          <PhasePanelContent />
+        </div>
+
+        {/* Tactical Log */}
+        <div className="dp-section-header">
+          <Radio size={10} />
+          <span>ATC COMS LOG</span>
+        </div>
+        <AtcLog log={flight.atcLog} />
+
+        {/* Action Panel */}
+        <div className="atc-control-panel">
+          {['WAITING', 'AT_STAND'].includes(flight.phase) && (
+            <div className="control-row">
+              <div className="input-field">
+                <label>RUNWAY ASSIGNMENT</label>
+                <FreeRunwaySelect flightId={flight.id} value={assignedRwy || flight.runway || '27R'} onChange={setAssignedRwy} />
+              </div>
+            </div>
+          )}
+
+          <div className="control-row">
+            <button className="action-button-pro" style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }} onClick={() => setCameraMode('FOLLOW')}>
+              TARGET LOCK
+            </button>
+
+            {flight.phase === 'WAITING' && !flight.approvedForLanding && (
+              <button className="action-button-pro approved" onClick={() => handleApprove(assignedRwy, 'approve')}>
+                APPROVE LANDING
+              </button>
+            )}
+            {flight.phase === 'AT_STAND' && !flight.approvedForTaxi && (
+              <button className="action-button-pro approved" style={{ background: '#06b6d4' }} onClick={() => handleApprove(assignedRwy, 'approve-taxi')}>
+                APPROVE TAXI
+              </button>
+            )}
+            {flight.phase === 'TAXI_OUT' && !flight.approvedForTakeoff && (
+              <button className="action-button-pro approved" style={{ background: '#3b82f6' }} onClick={() => handleApprove(flight.runway, 'approve-takeoff')}>
+                APPROVE TAKEOFF
+              </button>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Top 3 metrics bar */}
-      <div className="dp-metric-bar">
-        <div className="dp-metric-bar__item">
-          <span className="dp-metric-bar__label">GS</span>
-          <span className="dp-metric-bar__value">{Math.round(flight.speed)}<small>KT</small></span>
-        </div>
-        <div className="dp-metric-bar__item">
-          <span className="dp-metric-bar__label">ALT</span>
-          <span className="dp-metric-bar__value">{Math.round(flight.altitude || flight.position.y * 10)}<small>FT</small></span>
-        </div>
-        <div className="dp-metric-bar__item">
-          <span className="dp-metric-bar__label">HDG</span>
-          <span className="dp-metric-bar__value">{Math.round(flight.heading)}<small>°</small></span>
-        </div>
-        <div className="dp-metric-bar__item">
-          <span className="dp-metric-bar__label">V/S</span>
-          <span className="dp-metric-bar__value" style={{ color: (flight.verticalSpeed || 0) < -800 ? '#ef4444' : undefined }}>
-            {flight.verticalSpeed > 0 ? '+' : ''}{Math.round(flight.verticalSpeed || 0)}<small>fpm</small>
-          </span>
-        </div>
-      </div>
-
-      {/* Engine N1 bars */}
-      <div className="dp-engine-row">
-        {(flight.engineN1 || [75, 75]).map((n1, i) => (
-          <GaugeMeter key={i} label={`ENG ${i + 1} N1`} value={n1} max={100} unit="%" color="#06b6d4" warn={n1 > 95} />
-        ))}
-      </div>
-
-      {/* Phase-specific content */}
-      <div className="dp-phase-content">
-        <PhasePanelContent />
-      </div>
-
-      {/* Wind */}
-      <div className="dp-wind-row">
-        <Wind size={10} style={{ opacity: 0.6 }} />
-        <span>WIND {Math.round(flight.windDirection || 270)}°/{Math.round(flight.windSpeed || 12)}KT</span>
-        <span style={{ color: '#06b6d4' }}>HW {(flight.headwindComp || 0).toFixed(0)}KT</span>
-        <span style={{ color: Math.abs(flight.crosswindComp || 0) > 15 ? '#ef4444' : '#a78bfa' }}>
-          XW {Math.abs(flight.crosswindComp || 0).toFixed(0)}KT
-        </span>
-      </div>
-
-      {/* ATC Log */}
-      <div className="dp-section-header" style={{ marginTop: 10 }}>
-        <Radio size={10} style={{ opacity: 0.7 }} />
-        <span>ATC FREQUENCY LOG</span>
-      </div>
-      <AtcLog log={flight.atcLog} />
-
-      {/* Footer buttons */}
-      {['WAITING', 'AT_STAND'].includes(flight.phase) && (
-        <div className="dp-section-header" style={{ marginTop: 16 }}>
-          <span>RUNWAY ASSIGNMENT</span>
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 6, marginTop: 4, height: 40 }}>
-        {['WAITING', 'AT_STAND'].includes(flight.phase) && (
-          <FreeRunwaySelect flightId={flight.id} value={assignedRwy || flight.runway || '27R'} onChange={setAssignedRwy} color={flight.phase === 'WAITING' ? 'var(--accent-green)' : '#06b6d4'} />
-        )}
-
-        <button className="focus-btn" style={{ flex: 1, height: '100%', margin: 0, padding: 0 }} onClick={() => setCameraMode('FOLLOW')}>
-          TARGET LOCK
-        </button>
-        {flight.phase === 'WAITING' && !flight.approvedForLanding && (
-          <button className="focus-btn" style={{ flex: 2, height: '100%', margin: 0, background: '#000', color: 'var(--accent-green)', border: '1px solid var(--accent-green)' }} onClick={() => handleApprove(assignedRwy, 'approve')}>
-            <Navigation size={12} style={{ marginRight: 6, verticalAlign: 'middle' }} /> APPROVE LANDING
-          </button>
-        )}
-        {flight.phase === 'AT_STAND' && !flight.approvedForTaxi && (
-          <button className="focus-btn" style={{ flex: 2, height: '100%', margin: 0, background: '#000', color: '#06b6d4', border: '1px solid #06b6d4' }} onClick={() => handleApprove(assignedRwy, 'approve-taxi')}>
-            <Navigation size={12} style={{ marginRight: 6, verticalAlign: 'middle' }} /> APPROVE TAXI
-          </button>
-        )}
-        {flight.phase === 'TAXI_OUT' && !flight.approvedForTakeoff && flight.progress >= 1 && (
-          <button className="focus-btn" style={{ flex: 2, height: '100%', margin: 0, background: '#000', color: '#3b82f6', border: '1px solid #3b82f6' }} onClick={() => handleApprove(flight.runway, 'approve-takeoff')}>
-            <Navigation size={12} style={{ marginRight: 6, verticalAlign: 'middle' }} /> APPROVE TAKEOFF
-          </button>
-        )}
-      </div>
-
     </div>
   );
 }

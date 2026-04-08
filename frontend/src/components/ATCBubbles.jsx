@@ -3,21 +3,44 @@
 // Click a bubble to expand → full detail + clearance action.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { PlaneLanding, TowerControl, Plane, Navigation, Radio, Wind, X, ChevronRight, Loader } from 'lucide-react';
+import { Navigation, Plane, Radio, Wind, X, ChevronRight, RotateCw } from 'lucide-react';
 import { useFlightStore } from '../store/useFlightStore';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function fmtTime(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return '—'; }
 }
 
 const PHASE_META = {
-  WAITING:   { label: 'LANDING REQ',  color: '#f59e0b', icon: PlaneLanding, action: 'approve',         btnLabel: 'APPROVE LANDING', btnColor: '#4ade80' },
-  AT_STAND:  { label: 'TAXI CLEARANCE', color: '#06b6d4', icon: TowerControl,  action: 'approve-taxi',   btnLabel: 'APPROVE TAXI',    btnColor: '#06b6d4' },
+  WAITING:   { label: 'LANDING REQ',  color: '#f59e0b', icon: Navigation, action: 'approve',         btnLabel: 'APPROVE LANDING', btnColor: '#4ade80' },
+  AT_STAND:  { label: 'TAXI CLEARANCE', color: '#06b6d4', icon: Radio,  action: 'approve-taxi',   btnLabel: 'APPROVE TAXI',    btnColor: '#06b6d4' },
   TAXI_OUT:  { label: 'TAKEOFF REQ',  color: '#3b82f6', icon: Plane,          action: 'approve-takeoff', btnLabel: 'APPROVE TAKEOFF', btnColor: '#3b82f6' },
 };
+
+function SpecItem({ label, value, unit, alert }) {
+  return (
+    <div className="spec-item">
+      <span className="spec-label">{label}</span>
+      <div className="spec-value" style={{ color: alert ? 'var(--accent-red)' : undefined }}>
+        {value} {unit && <span className="spec-unit">{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
+function PhaseNode({ label, active }) {
+  return (
+    <div className={`phase-node ${active ? 'active' : ''}`}>
+      <span className="node-label-pro">{label}</span>
+    </div>
+  );
+}
 
 const WEIGHT_COLORS = { HEAVY: '#ef4444', MEDIUM: '#f59e0b', LIGHT: '#10b981' };
 
@@ -46,17 +69,17 @@ function FreeRunwaySelect({ value, onChange, color, flightId }) {
     return <span className="bubble-no-rwy">NO RWY FREE</span>;
 
   return (
-    <div className="rwy-select-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+    <div className="rwy-select-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
       <select
         value={value}
         onChange={e => { e.stopPropagation(); onChange(e.target.value); }}
         onClick={e => e.stopPropagation()}
-        className="bubble-rwy-select"
-        style={{ border: `1px solid ${color}44`, paddingRight: '24px' }}
+        className="custom-select"
+        style={{ width: '100%' }}
       >
         {freeRunways.map(r => <option key={r} value={r} style={{ background: '#111', color: '#fff' }}>RWY {r}</option>)}
       </select>
-      <ChevronRight size={10} style={{ position: 'absolute', right: 8, transform: 'rotate(90deg)', pointerEvents: 'none', opacity: 0.5 }} />
+      <ChevronRight size={10} style={{ position: 'absolute', right: 12, transform: 'rotate(90deg)', pointerEvents: 'none', opacity: 0.5 }} />
     </div>
   );
 }
@@ -64,18 +87,28 @@ function FreeRunwaySelect({ value, onChange, color, flightId }) {
 // ── Single Bubble ─────────────────────────────────────────────────────────────
 
 function ATCBubble({ flight, index, openId, setOpenId }) {
-  const [runway, setRunway]     = useState(flight.runway || '27R');
-  const [loading, setLoading]   = useState(false);
-  const [approved, setApproved] = useState(false);
+  // ── ALL hooks must be called unconditionally (Rules of Hooks) ──────────────
+  // The meta guard must come AFTER every hook, never before.
+  const [runway, setRunway]   = useState(flight.runway || '27R');
+  const [loading, setLoading] = useState(false);
+
+  // Sync runway state when flight changes
+  useEffect(() => {
+    if (flight.runway && flight.runway !== runway) setRunway(flight.runway);
+  }, [flight.runway]); // eslint-disable-line
+
+  // Reset loading spinner on phase change
+  useEffect(() => { setLoading(false); }, [flight.id, flight.phase]);
+
+  // ── NOW it's safe to bail out after all hooks ran ───────────────────────────
   const meta = PHASE_META[flight.phase];
   if (!meta) return null;
 
-  const isOpen   = openId === flight.id;
-  const wc       = flight.weightClass || 'MEDIUM';
-  const wcColor  = WEIGHT_COLORS[wc] || '#6b7280';
-  const Icon     = meta.icon;
-
-  useEffect(() => { setApproved(false); setLoading(false); }, [flight.id, flight.phase]);
+  const isOpen     = openId === flight.id;
+  const isApproved = flight.approvedForLanding || flight.approvedForTaxi || flight.approvedForTakeoff;
+  const wc         = flight.weightClass || 'MEDIUM';
+  const wcColor    = WEIGHT_COLORS[wc] || '#6b7280';
+  const Icon       = meta.icon;
 
   const handleApprove = async e => {
     e.stopPropagation();
@@ -87,8 +120,7 @@ function ATCBubble({ flight, index, openId, setOpenId }) {
         body: JSON.stringify({ runway }),
       });
       if (res.ok) {
-        setApproved(true);
-        setTimeout(() => setOpenId(null), 800);
+        // Success: the backend will push the updated flight status via WebSocket
       } else {
         const d = await res.json();
         alert(d.error || 'Approval failed');
@@ -124,90 +156,81 @@ function ATCBubble({ flight, index, openId, setOpenId }) {
         </div>
       </div>
 
-      {/* ── DESIGNER CARD (Expanded) ────────────────────── */}
+      {/* ── AWARD-WINNING DESIGNER CARD (Expanded) ────────── */}
       <div className={`atc-bubble-card ${isOpen ? 'visible' : ''}`} style={{ '--meta-color': meta.color }}>
-        <div className="bubble-card-main-header">
-          <div className="bubble-card-header-left">
-            <div className="bubble-card-callsign">{flight.id}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-              <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800 }}>{flight.airlineCode || 'AAL'}</span>
-              <span className="bubble-weight-badge" style={{ color: wcColor, borderColor: `${wcColor}33`, background: `${wcColor}11` }}>{wc}</span>
-            </div>
+        
+        {/* Left Branding Sidebar */}
+        <div className="bubble-card-sidebar">
+          <div className="sidebar-icon-box">
+             <Icon size={18} strokeWidth={2.5} />
           </div>
-          <button className="bubble-close-btn" onClick={() => setOpenId(null)}>
-            <X size={12} />
-          </button>
+          <div className="sidebar-airline-badge">
+            {flight.airlineName || 'OPERATOR'} · {flight.airlineCode || 'AAL'}
+          </div>
         </div>
 
-        <div className="bubble-details-section">
-          <div className="bubble-route-mini">
-            <span>{flight.origin || 'UNKN'}</span>
-            <Plane size={8} style={{ transform: 'rotate(90deg)', opacity: 0.5 }} />
-            <span>EGLL</span>
-            <span style={{ flex: 1 }} />
-            <span style={{ color: 'var(--accent-amber)', fontSize: 8, fontWeight: 800 }}>STA {fmtTime(flight.scheduledArrival)}</span>
-          </div>
-
-          <div className="bubble-grid-ultra">
-            <div className="b-metric-cell">
-              <label>ALT</label>
-              <div className="b-val">{Math.round(flight.altitude || 0)}<small>FT</small></div>
-            </div>
-            <div className="b-metric-cell">
-              <label>SPD</label>
-              <div className="b-val">{Math.round(flight.speed)}<small>KT</small></div>
-            </div>
-            <div className="b-metric-cell">
-              <label>SQWK</label>
-              <div className="b-val" style={{ color: 'var(--accent-cyan)' }}>{flight.squawk || '7000'}</div>
-            </div>
-            <div className="b-metric-cell">
-              <label>FUEL</label>
-              <div className="b-val">{Math.round((flight.fuelKg || 0)/1000).toFixed(1)}<small>T</small></div>
-            </div>
-            <div className="b-metric-cell">
-              <label>WIND</label>
-              <div className="b-val">{Math.round(flight.windDirection || 270)}°/{Math.round(flight.windSpeed || 12)}</div>
-            </div>
-            <div className="b-metric-cell">
-              <label>XWIND</label>
-              <div className="b-val" style={{ color: Math.abs(flight.crosswindComp || 0) > 15 ? 'var(--accent-red)' : 'var(--accent-purple)' }}>
-                {Math.abs(flight.crosswindComp || 0).toFixed(0)}<small>KT</small>
+        {/* Main Content Area */}
+        <div className="bubble-card-content">
+          <div className="bubble-card-header-pro">
+            <div className="title-group">
+              <div className="atc-main-callsign">{flight.id}</div>
+              <div className="atc-sub-info">
+                {flight.aircraftType || 'A320'} · {wc} CLASS · STA {fmtTime(flight.scheduledArrival)}
               </div>
             </div>
+            <X size={18} className="close-action" onClick={() => setOpenId(null)} />
           </div>
 
-          {flight.atcClearance && (
-            <div className="bubble-atc-msg-compact">
-              <Radio size={10} style={{ flexShrink: 0 }} />
-              <span>{flight.atcClearance}</span>
-            </div>
-          )}
-        </div>
+          <div className="specs-sheet">
+            <SpecItem label="ALTITUDE" value={Math.round(flight.altitude || 0)} unit="FT" />
+            <SpecItem label="AIRSPEED" value={Math.round(flight.speed)} unit="KT" />
+            <SpecItem label="SQUAWK" value={flight.squawk || '7000'} />
+            <SpecItem label="FUEL" value={Math.round((flight.fuelKg || 0)/1000).toFixed(1)} unit="T" />
+            <SpecItem label="WIND" value={`${Math.round(flight.windDirection || 270)}°/${Math.round(flight.windSpeed || 12)}`} />
+            <SpecItem 
+              label="CROSSWIND" 
+              value={Math.abs(flight.crosswindComp || 0).toFixed(0)} 
+              unit="KT"
+              alert={Math.abs(flight.crosswindComp || 0) > 15}
+            />
+          </div>
 
-        <div className="bubble-footer-strip">
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{ flex: 1 }}>
-              <FreeRunwaySelect
-                flightId={flight.id}
-                value={runway}
-                onChange={setRunway}
-                color={meta.color}
-              />
-            </div>
-            <div style={{ flex: 2 }}>
+          <div className="atc-phase-timeline">
+            <PhaseNode label="ARRIVAL" active={flight.phase === 'WAITING'} />
+            <PhaseNode label="APPROACH" active={flight.approvedForLanding} />
+            <PhaseNode label="LANDING" active={flight.phase === 'LANDING'} />
+          </div>
+
+          <div className="atc-control-panel">
+            <div className="control-row">
+              <div className="input-field">
+                <label>RUNWAY ASSIGNMENT</label>
+                <FreeRunwaySelect
+                  flightId={flight.id}
+                  value={runway}
+                  onChange={setRunway}
+                  color={meta.color}
+                />
+              </div>
               <button
-                className={`bubble-approve-pro ${approved ? 'approved' : ''}`}
-                style={{ '--btn-color': meta.btnColor }}
+                className={`action-button-pro ${isApproved ? 'approved' : ''}`}
+                style={{ '--meta-color': meta.color }}
                 onClick={handleApprove}
-                disabled={loading || approved}
+                disabled={loading || isApproved}
               >
-                {loading
-                  ? <Loader size={14} className="spin" />
-                  : approved
-                    ? '✓ CLEARED'
-                    : <><Navigation size={12} /> {meta.btnLabel}</>
-                }
+                {loading ? (
+                  <RotateCw size={18} className="spin" />
+                ) : isApproved ? (
+                  <>
+                    <RotateCw size={16} className="spin" style={{ opacity: 0.7 }} />
+                    <span>PROCESS ACTIVE</span>
+                  </>
+                ) : (
+                  <>
+                    <Navigation size={16} fill="currentColor" />
+                    <span>{meta.btnLabel}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -223,23 +246,32 @@ export function ATCBubbles() {
   const flights = useFlightStore(s => s.flights);
   const [openId, setOpenId] = useState(null);
 
-  const requests = flights.filter(f => {
-    if (f.phase === 'WAITING' && !f.approvedForLanding) return true;
-    if (f.phase === 'AT_STAND' && !f.approvedForTaxi) return true;
-    if (f.phase === 'TAXI_OUT' && !f.approvedForTakeoff && f.progress >= 1) return true;
-    return false;
+  const activeBubbles = flights.filter(f => {
+    // PENDING: Waiting for player action
+    const isPendingLanding = f.phase === 'WAITING' && !f.approvedForLanding;
+    const isPendingTaxi    = f.phase === 'AT_STAND' && !f.approvedForTaxi;
+    const isPendingTakeoff = f.phase === 'TAXI_OUT' && !f.approvedForTakeoff;
+
+    if (isPendingLanding || isPendingTaxi || isPendingTakeoff) return true;
+
+    // ACTIVE: Approved but still in progress
+    const isActiveApproach = f.approvedForLanding && ['WAITING', 'APPROACH', 'LANDING'].includes(f.phase);
+    const isActiveTaxi     = f.approvedForTaxi && f.phase === 'TAXI_OUT' && f.progress < 1;
+    const isActiveDeparture = f.approvedForTakeoff && ['TAXI_OUT', 'LINE_UP', 'TAKEOFF'].includes(f.phase);
+
+    return isActiveApproach || isActiveTaxi || isActiveDeparture;
   });
 
-  // Close open bubble if its flight disappears
+  // Close open bubble if its flight disappears from our active list
   useEffect(() => {
-    if (openId && !requests.find(r => r.id === openId)) setOpenId(null);
-  }, [requests.length]);
+    if (openId && !activeBubbles.find(r => r.id === openId)) setOpenId(null);
+  }, [activeBubbles.length]);
 
-  if (requests.length === 0) return null;
+  if (activeBubbles.length === 0) return null;
 
   return (
     <div className="atc-bubbles-container">
-      {requests.map((flight, i) => (
+      {activeBubbles.map((flight, i) => (
         <ATCBubble
           key={flight.id}
           flight={flight}
@@ -249,10 +281,10 @@ export function ATCBubbles() {
         />
       ))}
 
-      {/* Badge showing total count */}
-      {!openId && requests.length > 1 && (
+      {/* Badge showing total pending count (not active ones) */}
+      {!openId && activeBubbles.filter(f => !f.approvedForLanding && !f.approvedForTaxi && !f.approvedForTakeoff).length > 1 && (
         <div className="atc-bubbles-count-badge">
-          {requests.length} PENDING
+          {activeBubbles.filter(f => !f.approvedForLanding && !f.approvedForTaxi && !f.approvedForTakeoff).length} PENDING
         </div>
       )}
     </div>

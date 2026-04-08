@@ -12,6 +12,49 @@ import { AirportScene } from './AirportScene';
 import { Aircraft } from './Aircraft';
 import { CameraRig } from './CameraRig';
 
+// ── ErrorBoundary — prevents ANY 3D crash from causing a black screen ─────────
+class CanvasErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[GlidePath 3D] Caught error in Canvas:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          width: '100%', height: '100%',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          background: '#04070d', color: '#94a3b8', gap: 12,
+        }}>
+          <div style={{ fontSize: 28 }}>⚠️</div>
+          <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>3D SCENE ERROR</div>
+          <div style={{ fontSize: 11, opacity: 0.6, maxWidth: 280, textAlign: 'center' }}>
+            {this.state.error?.message || 'An unexpected error occurred in the viewport.'}
+          </div>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={{
+              marginTop: 8, padding: '6px 18px', background: '#1e293b',
+              border: '1px solid #334155', color: '#94a3b8', cursor: 'pointer',
+              fontSize: 11, letterSpacing: 1,
+            }}
+          >
+            RELOAD SCENE
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function AtmosphericLighting() {
   const theme = useFlightStore(s => s.theme);
   const isLight = theme === 'light';
@@ -59,66 +102,66 @@ export function View3D() {
   const skyColor = isLight ? '#87ceeb' : '#04070d';
 
   return (
-    <div className="viewport" style={{ width: '100%', height: '100%' }}>
-      <Canvas
-        shadows="soft"
-        gl={{
-          antialias: true,
-          toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 0.8,
-          powerPreference: 'high-performance',
-          // Limit pixel ratio to 1.5 — no visible quality loss, massive perf gain on HiDPI
-          // (handled via dpr below)
-        }}
-        dpr={[1, 1.5]}
-        camera={{ fov: 42, near: 1, far: 3000, position: [100, 220, 250] }}
-        style={{ background: '#04070d' }}
-        frameloop="always"
-        performance={{ min: 0.5 }} // r3f adaptive performance
-      >
-        {/* ── Atmosphere ───────────────────────────────────── */}
-        <color attach="background" args={[skyColor]} />
+    <CanvasErrorBoundary>
+      <div className="viewport" style={{ width: '100%', height: '100%' }}>
+        <Canvas
+          shadows="soft"
+          gl={{
+            antialias: true,
+            toneMapping: THREE.ACESFilmicToneMapping,
+            toneMappingExposure: 0.8,
+            powerPreference: 'high-performance',
+          }}
+          dpr={[1, 1.5]}
+          camera={{ fov: 42, near: 1, far: 3000, position: [100, 220, 250] }}
+          style={{ background: '#04070d' }}
+          frameloop="always"
+          performance={{ min: 0.5 }}
+        >
+          {/* ── Atmosphere ───────────────────────────────────── */}
+          <color attach="background" args={[skyColor]} />
 
-        {!isLight && (
-          <Stars radius={600} depth={100} count={2000} factor={4} fade speed={0.4} />
-        )}
+          {!isLight && (
+            <Stars radius={600} depth={100} count={2000} factor={4} fade speed={0.4} />
+          )}
 
-        <Suspense fallback={null}>
-          <AtmosphericLighting />
-          <AirportScene />
+          <Suspense fallback={null}>
+            <AtmosphericLighting />
+            <AirportScene />
 
-          {/* Live aircraft — each one independently interpolates at 60fps */}
-          {flights.map(flight => (
-            <Aircraft key={flight.id} flight={flight} />
-          ))}
-        </Suspense>
+            {/* Live aircraft — each one independently interpolates at 60fps */}
+            {flights.map(flight => (
+              <Aircraft key={flight.id} flight={flight} />
+            ))}
+          </Suspense>
 
-        {/* ── Lean Post-Processing (SSAO removed — 40% GPU savings) ──────── */}
-        <EffectComposer disableNormalPass multisampling={0}>
-          <Bloom
-            luminanceThreshold={0.85}
-            mipmapBlur
-            intensity={0.35}
-            radius={0.18}
-            levels={5}
-          />
-          <Vignette eskil={false} offset={0.12} darkness={0.75} />
-        </EffectComposer>
+          {/* ── Lean Post-Processing (SSAO removed — 40% GPU savings) ──────── */}
+          <EffectComposer disableNormalPass multisampling={0}>
+            <Bloom
+              luminanceThreshold={0.85}
+              mipmapBlur
+              intensity={0.35}
+              radius={0.18}
+              levels={5}
+            />
+            <Vignette eskil={false} offset={0.12} darkness={0.75} />
+          </EffectComposer>
 
-        {/* Smart dynamic camera rig */}
-        {cameraMode === 'FREEFLY' ? (
-          <OrbitControls
-            makeDefault
-            maxPolarAngle={Math.PI / 2 - 0.05}
-            minDistance={10}
-            maxDistance={1500}
-            enableDamping
-            dampingFactor={0.08}
-          />
-        ) : (
-          <CameraRig />
-        )}
-      </Canvas>
-    </div>
+          {/* Smart dynamic camera rig */}
+          {cameraMode === 'FREEFLY' ? (
+            <OrbitControls
+              makeDefault
+              maxPolarAngle={Math.PI / 2 - 0.05}
+              minDistance={10}
+              maxDistance={1500}
+              enableDamping
+              dampingFactor={0.08}
+            />
+          ) : (
+            <CameraRig />
+          )}
+        </Canvas>
+      </div>
+    </CanvasErrorBoundary>
   );
 }

@@ -52,12 +52,14 @@ export function Map2D() {
     const isLight = theme === 'light';
 
     // ── Background ──
-    ctx.fillStyle = isLight ? '#f1f5f9' : '#060b16';
+    ctx.fillStyle = isLight ? '#f8fafc' : '#020202';
     ctx.fillRect(0, 0, w, h);
 
-    // ── Grass areas ──
-    ctx.fillStyle = isLight ? '#f8fafc' : '#0a1520';
-    ctx.fillRect(0, 0, w, h);
+    // ── Subtle Radar Grids ──
+    ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.02)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < w; i += 40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke(); }
+    for (let i = 0; i < h; i += 40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke(); }
 
     const RUNWAY_XS = [-200, -100, 0, 420, 540];
     
@@ -65,16 +67,15 @@ export function Map2D() {
     RUNWAY_XS.forEach(rx => {
       const rStart = tp(rx - 13, -260);
       const rEnd   = tp(rx + 13, 260);
-      ctx.fillStyle = isLight ? '#cbd5e1' : '#1a2535';
+      ctx.fillStyle = isLight ? '#e2e8f0' : '#0a0f1a';
       ctx.fillRect(rStart.cx, rStart.cy, rEnd.cx - rStart.cx, rEnd.cy - rStart.cy);
-      ctx.strokeStyle = isLight ? '#94a3b8' : '#2a3a55';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = isLight ? '#cbd5e1' : '#1e293b';
+      ctx.lineWidth = 0.8;
       ctx.strokeRect(rStart.cx, rStart.cy, rEnd.cx - rStart.cx, rEnd.cy - rStart.cy);
 
-      // Centre-line dashes
-      ctx.strokeStyle = '#3d5a8a';
-      ctx.setLineDash([4, 4]);
-      ctx.lineWidth = 0.8;
+      // Centre-line dashes (Subtle tactical look)
+      ctx.strokeStyle = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+      ctx.setLineDash([2, 5]);
       ctx.beginPath();
       ctx.moveTo((rStart.cx + rEnd.cx) / 2, rStart.cy);
       ctx.lineTo((rStart.cx + rEnd.cx) / 2, rEnd.cy);
@@ -82,111 +83,50 @@ export function Map2D() {
       ctx.setLineDash([]);
     });
 
-    // ── Vertical Taxiways (Left x=180, Right x=310) ──
-    ctx.fillStyle = isLight ? '#94a3b8' : '#111827';
+    // ── Taxiways (Simplified for tactical look) ──
+    ctx.fillStyle = isLight ? '#cbd5e1' : '#080c14';
     const vtwy1L = tp(174, -220);
     const vtwy2L = tp(186, 220);
-    ctx.fillStyle = '#131d2e';
     ctx.fillRect(vtwy1L.cx, vtwy1L.cy, vtwy2L.cx - vtwy1L.cx, vtwy2L.cy - vtwy1L.cy);
-
     const vtwy1R = tp(304, -220);
     const vtwy2R = tp(316, 220);
     ctx.fillRect(vtwy1R.cx, vtwy1R.cy, vtwy2R.cx - vtwy1R.cx, vtwy2R.cy - vtwy1R.cy);
 
-    // ── Top Cross Taxiway bridges (z=-100)
-    const cross1Start = tp(-200, -106);
-    const cross1End = tp(180, -94);
-    ctx.fillRect(cross1Start.cx, cross1Start.cy, cross1End.cx - cross1Start.cx, cross1End.cy - cross1Start.cy);
-
-    const crossRStart = tp(310, -106);
-    const crossREnd = tp(540, -94);
-    ctx.fillRect(crossRStart.cx, crossRStart.cy, crossREnd.cx - crossRStart.cx, crossREnd.cy - crossRStart.cy);
-
-    // ── Bottom Cross Taxiway bridges (z=140)
-    const depStart = tp(-200, 134);
-    const depEnd = tp(180, 146);
-    ctx.fillRect(depStart.cx, depStart.cy, depEnd.cx - depStart.cx, depEnd.cy - depStart.cy);
-
-    const depRStart = tp(310, 134);
-    const depREnd = tp(540, 146);
-    ctx.fillRect(depRStart.cx, depRStart.cy, depREnd.cx - depRStart.cx, depREnd.cy - depRStart.cy);
-
-    // ── Connectors to Terminal
-    const termConnStart = tp(180, -6);
-    const termConnEnd = tp(210, 6);
-    ctx.fillRect(termConnStart.cx, termConnStart.cy, termConnEnd.cx - termConnStart.cx, termConnEnd.cy - termConnStart.cy);
-
-    const termConnStartR = tp(240, -6);
-    const termConnEndR = tp(310, 6);
-    ctx.fillRect(termConnStartR.cx, termConnStartR.cy, termConnEndR.cx - termConnStartR.cx, termConnEndR.cy - termConnStartR.cy);
-
-    // ── Terminal building ──
+    // ── Terminal Tactical Outline ──
     const term1 = tp(215, -40);
     const term2 = tp(280, 55);
-    ctx.fillStyle = '#1a2d4a';
-    ctx.fillRect(term1.cx, term1.cy, term2.cx - term1.cx, term2.cy - term1.cy);
-    ctx.strokeStyle = '#2a4070';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = isLight ? '#94a3b8' : '#1e293b';
     ctx.strokeRect(term1.cx, term1.cy, term2.cx - term1.cx, term2.cy - term1.cy);
 
-    // Terminal label
-    ctx.fillStyle = '#3d5a8a';
-    ctx.font = `${Math.max(7, w * 0.04)}px Inter, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText('TERMINAL', (term1.cx + term2.cx) / 2, (term1.cy + term2.cy) / 2 + 3);
-
-    // ── Stands (dots next to terminal) ──
-    const stands = ['A1','A2','A3','A4','B1','B2','B3','B4','C1','C2','C3','C4'];
-    stands.forEach((stand) => {
-      const standLetter = stand.charCodeAt(0) - 65;
-      const standNum = parseInt(stand[1] || '1');
-      const sx = 200 + standLetter * 22;
-      const sz = -30 + standNum * 22;
-      const { cx, cy } = tp(sx, sz);
-      ctx.beginPath();
-      ctx.arc(cx, cy, 2, 0, Math.PI * 2);
-      ctx.fillStyle = '#2a4070';
-      ctx.fill();
-    });
-
-    // ── Aircraft blips ──
+    // ── Aircraft blips (TACTICAL RADAR TARGETS) ──
     for (const flight of flights) {
+      if (!flight.position) continue;
       const { cx, cy } = tp(flight.position.x, flight.position.z);
       const color = PHASE_COLOURS[flight.phase] || '#3b82f6';
-      const isAirborne = ['APPROACH', 'TAKEOFF'].includes(flight.phase);
       const isSelectedF = flight.id === selected;
-      const r = isSelectedF ? 5 : 3.5;
-
-      // Glow
-      const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 3);
-      grd.addColorStop(0, color + '80');
-      grd.addColorStop(1, 'transparent');
+      
+      // Target Symbol
+      ctx.strokeStyle = color;
+      ctx.lineWidth = isSelectedF ? 2 : 1.5;
+      
+      // Draw a tactical "crosshair" for the aircraft
       ctx.beginPath();
-      ctx.arc(cx, cy, r * 3, 0, Math.PI * 2);
-      ctx.fillStyle = grd;
-      ctx.fill();
+      ctx.moveTo(cx - 4, cy); ctx.lineTo(cx + 4, cy);
+      ctx.moveTo(cx, cy - 4); ctx.lineTo(cx, cy + 4);
+      ctx.stroke();
 
-      // Core blip
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-
-      // Airborne ring
-      if (isAirborne) {
-        ctx.beginPath();
-        ctx.arc(cx, cy, r + 2.5, 0, Math.PI * 2);
-        ctx.strokeStyle = color + '80';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-
-      // Callsign label for selected
       if (isSelectedF) {
-        ctx.fillStyle = '#e8eeff';
-        ctx.font = `bold ${Math.max(8, w * 0.038)}px JetBrains Mono, monospace`;
+        // Selection Square
+        ctx.strokeRect(cx - 6, cy - 6, 12, 12);
+        
+        // Data Block (Tactical)
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px JetBrains Mono, monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(flight.id, cx + 7, cy + 4);
+        ctx.fillText(flight.id, cx + 10, cy - 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = '7px JetBrains Mono, monospace';
+        ctx.fillText(`${Math.round(flight.altitude || 0)}FT`, cx + 10, cy + 6);
       }
     }
 

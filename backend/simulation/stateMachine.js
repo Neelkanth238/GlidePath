@@ -370,9 +370,29 @@ function onPhaseEntry(flight, newPhase) {
 // Main tick function
 // ─────────────────────────────────────────────────────────────────────────────
 function tick(flight, dt) {
-  // Transition out of WAITING when approved
+  // ── 1. Instant Phase Transitions (triggered by ATC approval) ───────────
+  
+  // Transition out of WAITING -> APPROACH when cleared to land
   if (flight.phase === 'WAITING' && flight.approvedForLanding) {
     const nextPhase = 'APPROACH';
+    onPhaseEntry(flight, nextPhase);
+    flight.phase     = nextPhase;
+    flight.phaseTimer = 0;
+    flight.progress  = 0;
+  }
+
+  // Transition out of AT_STAND -> PUSHBACK when cleared for taxi
+  if (flight.phase === 'AT_STAND' && flight.approvedForTaxi) {
+    const nextPhase = 'PUSHBACK';
+    onPhaseEntry(flight, nextPhase);
+    flight.phase     = nextPhase;
+    flight.phaseTimer = 0;
+    flight.progress  = 0;
+  }
+
+  // Transition out of TAXI_OUT -> LINE_UP when cleared for takeoff
+  if (flight.phase === 'TAXI_OUT' && flight.approvedForTakeoff && flight.progress >= 0.95) {
+    const nextPhase = 'LINE_UP';
     onPhaseEntry(flight, nextPhase);
     flight.phase     = nextPhase;
     flight.phaseTimer = 0;

@@ -21,56 +21,39 @@ function Header({ panels, togglePanel }) {
   return (
     <header className="app-header">
       <div className="app-header__logo">
-        <Wind className="app-header__logo-icon" size={24} />
-        <span>GLIDEPATH <span style={{ color: 'var(--text-muted)', fontWeight: 300 }}>3D</span></span>
+        <Wind className="app-header__logo-icon" size={20} />
+        <span>GLIDEPATH <small style={{ opacity: 0.5, fontWeight: 300 }}>OPERATIONS</small></span>
       </div>
 
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '8px' }}>
-        <button
-          className={`cam-btn ${cameraMode === 'TOWER' ? 'active' : ''}`}
-          onClick={() => setCameraMode('TOWER')}
-        >
-          <Tower size={14} style={{ marginRight: '6px' }} />
-          TOWER OVERVIEW
+        <button className={`cam-btn ${cameraMode === 'TOWER' ? 'active' : ''}`} onClick={() => setCameraMode('TOWER')}>
+          <Tower size={12} /> TOWER
         </button>
-        <button
-          className={`cam-btn ${cameraMode === 'FOLLOW' ? 'active' : ''}`}
-          onClick={() => setCameraMode('FOLLOW')}
-        >
-          <Crosshair size={14} style={{ marginRight: '6px' }} />
-          FOLLOW TARGET
+        <button className={`cam-btn ${cameraMode === 'FOLLOW' ? 'active' : ''}`} onClick={() => setCameraMode('FOLLOW')}>
+          <Crosshair size={12} /> TARGET
         </button>
-        <button
-          className={`cam-btn ${cameraMode === 'RUNWAY' ? 'active' : ''}`}
-          onClick={() => setCameraMode('RUNWAY')}
-        >
-          <Layout size={14} style={{ marginRight: '6px' }} />
-          RUNWAY CAM
+        <button className={`cam-btn ${cameraMode === 'RUNWAY' ? 'active' : ''}`} onClick={() => setCameraMode('RUNWAY')}>
+          <Layout size={12} /> RUNWAY
         </button>
-        <button
-          className={`cam-btn ${cameraMode === 'FREEFLY' ? 'active' : ''}`}
-          onClick={() => setCameraMode('FREEFLY')}
-        >
-          <MousePointer2 size={14} style={{ marginRight: '6px' }} />
-          FREE CAM
+        <button className={`cam-btn ${cameraMode === 'FREEFLY' ? 'active' : ''}`} onClick={() => setCameraMode('FREEFLY')}>
+          <MousePointer2 size={12} /> FREE
         </button>
       </div>
 
-      <div className="app-header__status" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        {/* Visibility Toggles */}
-        <div style={{ display: 'flex', gap: '6px', borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: '16px' }}>
-          <button className={`cam-btn ${panels.list ? 'active' : ''}`} onClick={() => togglePanel('list')} title="Toggle Flight List"><List size={16} /></button>
-          <button className={`cam-btn ${panels.blueprint ? 'active' : ''}`} onClick={() => togglePanel('blueprint')} title="Toggle Blueprint Map"><MapIcon size={16} /></button>
-          <button className="cam-btn" onClick={toggleTheme} title="Toggle Theme">
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+      <div className="app-header__status">
+        <div style={{ display: 'flex', gap: '6px', borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: '16px', marginRight: '16px' }}>
+          <button className={`cam-btn ${panels.list ? 'active' : ''}`} onClick={() => togglePanel('list')}><List size={14} /></button>
+          <button className={`cam-btn ${panels.blueprint ? 'active' : ''}`} onClick={() => togglePanel('blueprint')}><MapIcon size={14} /></button>
+          <button className="cam-btn" onClick={toggleTheme}>
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </button>
         </div>
 
-        {/* Status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Cpu size={14} color={connected ? 'var(--accent-green)' : 'var(--accent-red)'} />
-          <span>SYSTEM {connected ? 'READY' : 'OFFLINE'}</span>
-          <div className="status-dot" style={{ background: connected ? 'var(--accent-green)' : 'var(--accent-red)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="status-dot" style={{ color: connected ? 'var(--accent-green)' : 'var(--accent-red)' }} />
+          <span style={{ fontSize: '9px', fontWeight: 900, letterSpacing: '1px', opacity: 0.8 }}>
+            {connected ? 'LINK ACTIVE' : 'LINK LOST'}
+          </span>
         </div>
       </div>
     </header>

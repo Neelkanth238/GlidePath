@@ -2,17 +2,17 @@
 // Express REST API + WebSocket server for real-time flight data streaming
 
 const express = require('express');
-const http    = require('http');
+const http = require('http');
 const { WebSocketServer } = require('ws');
-const cors    = require('cors');
+const cors = require('cors');
 
-const dataStore    = require('./store/dataStore');
-const engine       = require('./simulation/engine');
+const dataStore = require('./store/dataStore');
+const engine = require('./simulation/engine');
 
 const PORT = 8080;
 const WS_BROADCAST_INTERVAL_MS = 50; // 20 Hz
 
-const app    = express();
+const app = express();
 const server = http.createServer(app);
 
 app.use(cors());
